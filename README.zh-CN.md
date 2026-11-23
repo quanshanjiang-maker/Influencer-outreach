@@ -80,6 +80,7 @@
 
 1. **Fork** 这个仓库。
 2. **Google 表格**：新建一个空表格。在 Google Cloud 创建服务账号 (service account)，开启 *Google Sheets API*，下载 JSON 密钥，并把表格共享给服务账号的邮箱（编辑者权限）。
+   *如果 Google 提示“服务账号密钥建立功能已停用”（组织政策 organization policy）*，改用你自己的 Google 登录授权 (OAuth)：设置 OAuth 同意屏幕 (consent screen)，选“外部 (External)”，把自己加为测试用户 (test user)，再点“发布应用 (Publish app)”，这样令牌 (token) 不会 7 天就过期。然后创建 OAuth 客户端，类型选“网页应用 (Web application)”，重定向网址 (redirect URI) 填 `https://developers.google.com/oauthplayground`。接着在 [OAuth Playground](https://developers.google.com/oauthplayground) 点齿轮，勾选 *Use your own OAuth credentials*，授权这三个范围 (scopes)：`https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly`，换取刷新令牌 (refresh token)。把 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REFRESH_TOKEN` 存成 Secrets。同一个令牌也能用这个 Gmail 发信。
 3. **密钥**：申请 [Anthropic API key](https://console.anthropic.com)，再按需申请各平台的 key：[TwitterAPI.io](https://twitterapi.io)、YouTube Data API key（Google Cloud 开启 *YouTube Data API v3* 后创建 API key）、[Apify](https://apify.com) token（Instagram/TikTok 用）。Criteria 页的 platforms 列填 `x,youtube,instagram,tiktok` 选择平台。
 4. **本地运行**：
    ```bash

@@ -33,6 +33,7 @@ class Config:
     slack_channel_id: str | None = None
     slack_app_token: str | None = None
     google_service_account: dict | None = None
+    google_oauth: dict | None = None  # alternative to a service account: your own Google login
     sheet_id: str | None = None
 
 
@@ -46,6 +47,16 @@ def _load_service_account(value: str | None) -> dict | None:
     if path.exists():
         return json.loads(path.read_text())
     raise FileNotFoundError(f"GOOGLE_SERVICE_ACCOUNT_JSON points to missing file: {value}")
+
+
+def _load_oauth() -> dict | None:
+    """GOOGLE_REFRESH_TOKEN + an OAuth client (GOOGLE_CLIENT_ID/SECRET, or the GMAIL_ ones)."""
+    token = os.getenv("GOOGLE_REFRESH_TOKEN")
+    cid = os.getenv("GOOGLE_CLIENT_ID") or os.getenv("GMAIL_CLIENT_ID")
+    secret = os.getenv("GOOGLE_CLIENT_SECRET") or os.getenv("GMAIL_CLIENT_SECRET")
+    if token and cid and secret:
+        return {"client_id": cid, "client_secret": secret, "refresh_token": token}
+    return None
 
 
 def load_config(path: str | os.PathLike = "config.yaml") -> Config:
@@ -74,5 +85,6 @@ def load_config(path: str | os.PathLike = "config.yaml") -> Config:
         slack_channel_id=os.getenv("SLACK_CHANNEL_ID"),
         slack_app_token=os.getenv("SLACK_APP_TOKEN"),
         google_service_account=_load_service_account(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")),
+        google_oauth=_load_oauth(),
         sheet_id=os.getenv("SHEET_ID"),
     )

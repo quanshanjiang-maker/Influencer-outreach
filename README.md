@@ -92,6 +92,7 @@ Everything runs on GitHub Actions. You bring your own API keys; nothing is share
 
 1. **Fork** this repository.
 2. **Google Sheet**: create an empty sheet. In Google Cloud, create a service account, enable the *Google Sheets API*, download its JSON key, and share the sheet with the service account's email (Editor).
+   *If Google says "service account key creation is disabled" (an organization policy),* use your own Google login instead: set up the OAuth consent screen (External, add yourself as a test user, then *Publish app* so the token does not expire after 7 days), create an OAuth client of type *Web application* with redirect URI `https://developers.google.com/oauthplayground`, then in the [OAuth Playground](https://developers.google.com/oauthplayground) click the gear, tick *Use your own OAuth credentials*, authorize the scopes `https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly`, and exchange the code for a refresh token. Save `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REFRESH_TOKEN` as secrets. The same token also sends from that Gmail.
 3. **Keys**: get an [Anthropic API key](https://console.anthropic.com), plus keys for the platforms you use: [TwitterAPI.io](https://twitterapi.io), a YouTube Data API key (Google Cloud → enable *YouTube Data API v3* → API key), and an [Apify](https://apify.com) token for Instagram/TikTok.
 4. **Local run**:
    ```bash

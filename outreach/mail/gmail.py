@@ -13,7 +13,8 @@ import requests
 from .base import Mailbox, Reply, SentMessage
 
 API = "https://gmail.googleapis.com/gmail/v1/users/me"
-SCOPES = ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly",
+          "https://www.googleapis.com/auth/spreadsheets"]  # one token can also open the sheet
 
 
 class GmailMailbox(Mailbox):
