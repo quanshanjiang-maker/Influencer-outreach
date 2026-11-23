@@ -7,6 +7,7 @@
     python -m outreach approve --handles alice,youtube:bob | --min-score 8 [--followups]
     python -m outreach send [--dry-run] [--max N]
     python -m outreach replies [--dry-run]
+    python -m outreach slack digest | poll | listen
     python -m outreach gmail-auth --client-secret client_secret.json
     python -m outreach search --keywords "AI video tools" --lang en   # no sheet needed
 """
@@ -22,7 +23,7 @@ from .config import load_config
 
 def cmd_setup_sheet(cfg, args) -> int:
     from .sheets import Sheet
-    sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs)
+    sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
     created = sheet.setup()
     print("Created tabs: " + (", ".join(created) if created else "none (all tabs already exist)"))
     return 0
@@ -45,7 +46,7 @@ def cmd_search(cfg, args) -> int:
                                   min_followers=args.min_followers, max_candidates=50,
                                   platforms=[p.strip() for p in args.platforms.split(",")])]
     else:
-        sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs)
+        sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
         criteria_list = sheet.read_criteria()
     if args.criteria:
         criteria_list = [c for c in criteria_list if c.name == args.criteria]
@@ -113,7 +114,7 @@ def cmd_score(cfg, args) -> int:
     sc = cfg.scoring or {}
     min_score = int(sc.get("min_score", 7))
     limit = args.limit or int(sc.get("max_per_run", 1000))
-    sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs)
+    sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
     briefs = {c.name: f"{c.keywords}. {c.description}".strip() for c in sheet.read_criteria()}
 
     todo = [(row, r) for row, r in sheet.read_candidates()
@@ -171,7 +172,7 @@ def cmd_emails(cfg, args) -> int:
     from .emails import SENDABLE, find_email, verify
     from .sheets import Sheet
 
-    sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs)
+    sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
     todo = [(row, r) for row, r in sheet.read_candidates()
             if str(r.get("status", "")).strip() == "scored" and not str(r.get("email_status", "")).strip()]
     todo = todo[: args.limit] if args.limit else todo
@@ -206,7 +207,7 @@ def cmd_emails(cfg, args) -> int:
 
 def _sheet(cfg):
     from .sheets import Sheet
-    return Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs)
+    return Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
 
 
 def cmd_approve(cfg, args) -> int:
@@ -327,8 +328,35 @@ def cmd_gmail_auth(cfg, args) -> int:
     from .mail.gmail import authorize
 
     token = authorize(args.client_secret)
-    print("Refresh token (store it as a secret, e.g. GMAIL1_REFRESH_TOKEN; do not commit it):")
+    print("Refresh token. Store it as a secret: GOOGLE_REFRESH_TOKEN (sheet + main Gmail) "
+          "or GMAILn_REFRESH_TOKEN for extra Gmail mailboxes. Do not commit it:")
     print(token)
+    return 0
+
+
+def cmd_slack(cfg, args) -> int:
+    import anthropic
+
+    from . import slack_bot as sb
+
+    sheet = _sheet(cfg)
+    slack = sb.Slack(cfg.slack_bot_token, cfg.slack_channel_id)
+    if args.action == "digest":
+        text = sb.digest_text(sheet.read_candidates())
+        if args.dry_run:
+            print(text)
+        else:
+            slack.post(text, event=sb.DIGEST_EVENT)
+            print("Posted digest.")
+        return 0
+    ctx = sb.Context(slack, sheet, anthropic.Anthropic(api_key=cfg.anthropic_api_key),
+                     cfg.models.get("chat", cfg.models.get("scoring", "claude-haiku-5-5")))
+    if args.action == "poll":
+        sb.poll(ctx)
+    else:
+        if not cfg.slack_app_token:
+            raise SystemExit("Socket Mode needs SLACK_APP_TOKEN (xapp-...) and `pip install slack_bolt`.")
+        sb.listen(ctx, cfg.slack_app_token)
     return 0
 
 
@@ -362,7 +390,11 @@ def main(argv: list[str] | None = None) -> int:
     se.add_argument("--max", type=int, help="send at most N this run")
     rp = sub.add_parser("replies", help="check sent threads for replies, bounces and follow-ups")
     rp.add_argument("--dry-run", action="store_true")
-    ga = sub.add_parser("gmail-auth", help="one-time: get a Gmail refresh token")
+    sl = sub.add_parser("slack", help="Slack bot: post the shortlist and answer thread replies")
+    sl.add_argument("action", choices=["digest", "poll", "listen"])
+    sl.add_argument("--dry-run", action="store_true", help="digest: print instead of posting")
+    ga = sub.add_parser("gmail-auth", aliases=["google-auth"],
+                        help="one-time: get a Google refresh token (Sheets + Gmail)")
     ga.add_argument("--client-secret", required=True, help="OAuth client JSON from Google Cloud")
     args = p.parse_args(argv)
 
@@ -371,7 +403,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(args.config)
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
-            "gmail-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "slack": cmd_slack, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

@@ -20,9 +20,9 @@ jobs:
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       SHEET_ID: ${{ secrets.SHEET_ID }}
       # Names must match the *_env fields under mailboxes: in config.yaml
-      GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
-      GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
-      GMAIL1_REFRESH_TOKEN: ${{ secrets.GMAIL1_REFRESH_TOKEN }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
       COMPANY_MAIL_PASSWORD: ${{ secrets.COMPANY_MAIL_PASSWORD }}
     steps:
       - uses: actions/checkout@v4

@@ -8,7 +8,7 @@ from .base import Mailbox, Reply, SentMessage
 
 def get_mailbox(conf: dict) -> Mailbox:
     """conf is one entry of `mailboxes:` in config.yaml. Secrets are read from env vars
-    named in the entry (e.g. refresh_token_env: GMAIL1_REFRESH_TOKEN)."""
+    named in the entry (e.g. refresh_token_env: GOOGLE_REFRESH_TOKEN)."""
     kind = conf.get("type", "gmail")
 
     def env(key: str, required: bool = True) -> str:

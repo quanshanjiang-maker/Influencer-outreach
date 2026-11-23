@@ -20,6 +20,7 @@ beyond a dry run.
   Add `--followups` to approve `followup_due` rows instead. Use `--dry-run` first to show the list.
 - `python -m outreach send --dry-run` prints every email that would go out; `python -m outreach send [--max N]` sends approved rows.
 - `python -m outreach replies [--dry-run]` reads sent threads: replied / bounced / unsubscribed / followup_due.
+- `python -m outreach slack digest [--dry-run]` posts the shortlist to Slack; `slack poll` answers new thread replies; `slack listen` is real-time Socket Mode.
 - `python -m outreach gmail-auth --client-secret file.json` one-time Gmail authorization (prints a refresh token; never commit it).
 
 Approval flow from chat: when the user says something like "send everyone 8+, skip @foo", run `approve --dry-run`

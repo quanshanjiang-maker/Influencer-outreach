@@ -1,0 +1,22 @@
+# Paste into https://api.slack.com/apps -> Create New App -> From a manifest.
+# 在 Slack 创建应用时选 "From a manifest"，粘贴这段。
+display_information:
+  name: Outreach Bot
+  description: Posts the daily creator shortlist and takes approvals in chat.
+features:
+  bot_user:
+    display_name: outreach-bot
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - channels:history
+      - groups:history
+settings:
+  # Only needed for real-time `slack listen`; polling works with this off.
+  socket_mode_enabled: true
+  event_subscriptions:
+    bot_events:
+      - message.channels
+      - message.groups

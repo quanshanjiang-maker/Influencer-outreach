@@ -64,10 +64,19 @@ def _int(v, default=0) -> int:
 
 
 class Sheet:
-    def __init__(self, service_account: dict, sheet_id: str, tabs: dict):
-        if not service_account or not sheet_id:
-            raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON and SHEET_ID must be set")
-        self.gc = gspread.service_account_from_dict(service_account)
+    def __init__(self, service_account: dict | None, sheet_id: str, tabs: dict, oauth: dict | None = None):
+        if not sheet_id or not (service_account or oauth):
+            raise ValueError("Set SHEET_ID and either GOOGLE_SERVICE_ACCOUNT_JSON or "
+                             "GOOGLE_REFRESH_TOKEN + GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET")
+        if service_account:
+            self.gc = gspread.service_account_from_dict(service_account)
+        else:
+            from google.oauth2.credentials import Credentials
+            creds = Credentials(None, refresh_token=oauth["refresh_token"], client_id=oauth["client_id"],
+                                client_secret=oauth["client_secret"],
+                                token_uri="https://oauth2.googleapis.com/token",
+                                scopes=["https://www.googleapis.com/auth/spreadsheets"])
+            self.gc = gspread.authorize(creds)
         self.book = self.gc.open_by_key(sheet_id)
         self._pitch: dict[str, str] = {}
         self._cols: dict[str, list[str]] = {}

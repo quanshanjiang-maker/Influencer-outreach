@@ -7,6 +7,8 @@ models:
   query_expansion: claude-opus-5-5
   # Scores each creator and drafts the email opener. 打分并写开场白。
   scoring: claude-haiku-5-5
+  # Understands your Slack messages. 理解你在 Slack 里说的话。
+  chat: claude-haiku-5-5
 
 # Platforms are chosen per row in the Criteria tab (column "platforms"):
 #   x          -> TwitterAPI.io        (TWITTERAPI_IO_KEY)
@@ -62,9 +64,9 @@ mailboxes:
     address: you@gmail.com
     from_name: Your Name
     daily_limit: 30                 # keep new mailboxes low and warm up slowly 新邮箱先少发（预热 warm-up）
-    client_id_env: GMAIL_CLIENT_ID
-    client_secret_env: GMAIL_CLIENT_SECRET
-    refresh_token_env: GMAIL1_REFRESH_TOKEN
+    client_id_env: GOOGLE_CLIENT_ID
+    client_secret_env: GOOGLE_CLIENT_SECRET
+    refresh_token_env: GOOGLE_REFRESH_TOKEN
   # Company mailbox on any provider (Microsoft 365, Tencent Exmail, Zoho ...): SMTP + IMAP.
   # 企业邮箱，任何服务商都可以用 SMTP + IMAP 连接。
   # - name: company
