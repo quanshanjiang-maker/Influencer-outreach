@@ -59,6 +59,20 @@ def _load_oauth() -> dict | None:
     return None
 
 
+def _resolve_mailboxes(boxes: list) -> list:
+    """Let address / from_name come from env vars (address_env, from_name_env) so a public
+    repo doesn't have to contain the sending address."""
+    out = []
+    for b in boxes:
+        b = dict(b)
+        for key in ("address", "from_name"):
+            name = b.get(f"{key}_env")
+            if name and os.getenv(name):
+                b[key] = os.getenv(name).strip()
+        out.append(b)
+    return out
+
+
 def load_config(path: str | os.PathLike = "config.yaml") -> Config:
     load_dotenv()
     p = Path(path)
@@ -70,7 +84,7 @@ def load_config(path: str | os.PathLike = "config.yaml") -> Config:
         search=raw.get("search", {}),
         scoring=raw.get("scoring", {}),
         sheet_tabs=raw.get("sheet_tabs", {}),
-        mailboxes=raw.get("mailboxes") or [],
+        mailboxes=_resolve_mailboxes(raw.get("mailboxes") or []),
         sending=raw.get("sending", {}),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
         twitterapi_io_key=os.getenv("TWITTERAPI_IO_KEY"),

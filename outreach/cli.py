@@ -324,6 +324,21 @@ def cmd_replies(cfg, args) -> int:
     return 0
 
 
+def cmd_test_email(cfg, args) -> int:
+    """Send one test email from each mailbox to its own address (never to a creator)."""
+    from .mail import get_mailbox
+
+    if not cfg.mailboxes:
+        raise SystemExit("No mailboxes in config.yaml (see config.example.yaml, section mailboxes).")
+    for conf in cfg.mailboxes:
+        box = get_mailbox(conf)
+        sent = box.send(box.address, "Influencer Outreach test",
+                        "This is a test from Influencer Outreach. If you can read it, sending works.\n"
+                        "这是一封测试邮件。能看到它，说明发信已接通。")
+        print(f"Sent a test email from {box.address} to itself (thread {sent.thread_id}).")
+    return 0
+
+
 def cmd_gmail_auth(cfg, args) -> int:
     from .mail.gmail import authorize
 
@@ -390,6 +405,7 @@ def main(argv: list[str] | None = None) -> int:
     se.add_argument("--max", type=int, help="send at most N this run")
     rp = sub.add_parser("replies", help="check sent threads for replies, bounces and follow-ups")
     rp.add_argument("--dry-run", action="store_true")
+    sub.add_parser("test-email", help="send one test email from each mailbox to itself")
     sl = sub.add_parser("slack", help="Slack bot: post the shortlist and answer thread replies")
     sl.add_argument("action", choices=["digest", "poll", "listen"])
     sl.add_argument("--dry-run", action="store_true", help="digest: print instead of posting")
@@ -403,7 +419,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(args.config)
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
-            "slack": cmd_slack, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "slack": cmd_slack, "test-email": cmd_test_email, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ on:
           - score
           - emails --dry-run
           - emails
+          - test-email
           - send --dry-run
           - replies --dry-run
           - slack digest --dry-run
@@ -43,6 +44,8 @@ jobs:
       GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
       GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+      SENDER_NAME: ${{ secrets.SENDER_NAME }}
       COMPANY_MAIL_PASSWORD: ${{ secrets.COMPANY_MAIL_PASSWORD }}
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
       SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}

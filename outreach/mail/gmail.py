@@ -20,14 +20,20 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.
 class GmailMailbox(Mailbox):
     def __init__(self, address: str, from_name: str, client_id: str, client_secret: str, refresh_token: str):
         self.address, self.from_name = address, from_name
-        self._creds = {"client_id": client_id, "client_secret": client_secret,
-                       "refresh_token": refresh_token, "grant_type": "refresh_token"}
+        self._creds = {"client_id": client_id.strip(), "client_secret": client_secret.strip(),
+                       "refresh_token": refresh_token.strip(), "grant_type": "refresh_token"}
         self._token, self._expires = "", 0.0
 
     def _auth(self) -> dict:
         if time.time() > self._expires - 60:
             r = requests.post("https://oauth2.googleapis.com/token", data=self._creds, timeout=20)
-            r.raise_for_status()
+            if not r.ok:  # Google's error code (e.g. invalid_grant / invalid_client) says which secret is wrong
+                try:
+                    err = r.json()
+                except ValueError:
+                    err = {}
+                raise RuntimeError(f"Google token refresh failed ({r.status_code}): "
+                                   f"{err.get('error', '')} {err.get('error_description', '')}".strip())
             d = r.json()
             self._token, self._expires = d["access_token"], time.time() + int(d.get("expires_in", 3600))
         return {"Authorization": f"Bearer {self._token}"}

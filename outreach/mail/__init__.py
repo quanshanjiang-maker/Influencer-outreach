@@ -10,6 +10,10 @@ def get_mailbox(conf: dict) -> Mailbox:
     """conf is one entry of `mailboxes:` in config.yaml. Secrets are read from env vars
     named in the entry (e.g. refresh_token_env: GOOGLE_REFRESH_TOKEN)."""
     kind = conf.get("type", "gmail")
+    if not conf.get("address"):
+        env_name = conf.get("address_env")
+        raise ValueError(f"mailbox {conf.get('name', '')}: no address; "
+                         + (f"set the {env_name} secret" if env_name else "set address or address_env"))
 
     def env(key: str, required: bool = True) -> str:
         name = conf.get(f"{key}_env")
