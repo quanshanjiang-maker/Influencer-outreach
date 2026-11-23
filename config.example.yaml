@@ -15,6 +15,22 @@ models:
 #   tiktok     -> Apify TikTok Scraper    (APIFY_TOKEN)
 # 平台在 Criteria 页的 platforms 列按行选择，例如 x,youtube,instagram,tiktok
 
+# Which provider serves each platform. 每个平台用哪个数据源。
+#   youtube:   youtube_api (free) | easykol
+#   instagram: apify | easykol
+#   tiktok:    apify | easykol
+# EasyKOL (EASYKOL_API_KEY + EASYKOL_API_EMAIL) does semantic search itself and
+# returns creators with emails; billed per batch of results on your EasyKOL plan.
+# EasyKOL 自带语义搜索并返回邮箱，按批次扣你 EasyKOL 套餐里的任务点数。
+providers:
+  x: twitterapi_io
+  youtube: youtube_api
+  instagram: apify
+  tiktok: apify
+  easykol_options:
+    batch_count: 1          # 1-10 batches per search; Instagram costs 2 points per batch
+    has_contact_info: true  # only creators EasyKOL has an email for
+
 search:
   queries_per_criteria: 12     # search queries Claude writes per criteria row and platform
   pages_per_query: 3           # ~20 results per page (50 on YouTube)

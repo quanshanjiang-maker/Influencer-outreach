@@ -64,10 +64,17 @@ def cmd_search(cfg, args) -> int:
         sources[platform] = source
         if hasattr(source, "language"):
             source.language = crit.language
-        queries = expand_queries(
-            client, cfg.models.get("query_expansion", "claude-opus-5-5"), crit,
-            int(cfg.search.get("queries_per_criteria", 12)), platform=platform,
-        )
+        if hasattr(source, "regions"):
+            source.regions = crit.regions
+            source.min_followers, source.max_followers = crit.min_followers, crit.max_followers
+            source.min_avg = crit.min_avg_likes
+        if source.expands_queries:
+            queries = expand_queries(
+                client, cfg.models.get("query_expansion", "claude-opus-5-5"), crit,
+                int(cfg.search.get("queries_per_criteria", 12)), platform=platform,
+            )
+        else:
+            queries = [f"{crit.description or crit.keywords} ({crit.keywords})"]
         result = run_search(
             source, crit, queries, known,
             pages_per_query=int(cfg.search.get("pages_per_query", 3)),

@@ -8,7 +8,7 @@ import gspread
 from .models import PLATFORMS, Creator, Criteria
 
 CRITERIA_HEADERS = [
-    "enabled", "name", "platforms", "keywords", "description", "language",
+    "enabled", "name", "platforms", "regions", "keywords", "description", "language",
     "min_followers", "max_followers", "min_avg_likes", "max_candidates",
 ]
 
@@ -28,7 +28,7 @@ OUTREACH_HEADERS = [
 TEMPLATE_HEADERS = ["name", "subject", "body"]
 
 EXAMPLE_CRITERIA = [
-    "TRUE", "ai-video", "x,youtube", "AI video tools",
+    "TRUE", "ai-video", "x,youtube", "US,GB", "AI video tools",
     "Creators who review or teach AI video generation tools", "en",
     "5000", "200000", "20", "200",
 ]
@@ -107,6 +107,7 @@ class Sheet:
                 min_avg_likes=float(_int(r.get("min_avg_likes"))),
                 max_candidates=_int(r.get("max_candidates"), 200) or 200,
                 platforms=platforms,
+                regions=[x.strip().upper() for x in str(r.get("regions") or "").split(",") if x.strip()],
             ))
         return out
 
@@ -140,6 +141,9 @@ class Sheet:
                 "website": c.website,
                 "matched_query": " | ".join(sorted(c.matched_queries))[:500],
                 "top_tweet_url": top.url if top else "",
+                "email": c.email,
+                "email_source": c.email_source,
+                "score_reason": c.match_reason,
                 "status": "new",
             }
             rows.append([row.get(h, "") for h in CANDIDATE_HEADERS])

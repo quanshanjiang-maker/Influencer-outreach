@@ -52,6 +52,6 @@ def run_search(
             source.enrich(pool)
         except Exception as e:
             log.error("enrich failed: %s", e)
-    kept = [c for c in pool if prefilter.passes(c, criteria, known)]
+    kept = [c for c in pool if prefilter.passes(c, criteria, known, source.prefiltered)]
     kept = prefilter.rank(kept)[: criteria.max_candidates]
     return SearchResult(criteria, queries, fetched, len(found), kept)

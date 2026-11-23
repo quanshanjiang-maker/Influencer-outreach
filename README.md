@@ -18,6 +18,9 @@ Find creators on X (Twitter), YouTube, Instagram and TikTok by topic every day, 
 | YouTube | official YouTube Data API v3 | `YOUTUBE_API_KEY` | free daily quota |
 | Instagram | [Apify Instagram Scraper](https://apify.com/apify/instagram-scraper) | `APIFY_TOKEN` | $1.50–2.70 / 1k results |
 | TikTok | [Apify TikTok Scraper](https://apify.com/clockworks/tiktok-scraper) | `APIFY_TOKEN` | ~$1.00–3.00 / 1k results |
+| YouTube / Instagram / TikTok (alternative) | [EasyKOL](https://easykol.com/en/pricing) [API](https://github.com/iftechio/easykol-skills/blob/main/docs/api.md) | `EASYKOL_API_KEY`, `EASYKOL_API_EMAIL` | your EasyKOL plan's task points; returns emails |
+
+Pick the provider per platform under `providers:` in `config.yaml`.
 4. *(next)* Claude scores each creator's bio and recent posts for relevance and writes a personalized opener.
 5. *(next)* Emails are found (bio, website, Hunter) and verified (MillionVerifier).
 6. *(next)* A Slack bot posts the shortlist; you reply in plain language ("send everyone 8+, skip @foo") and confirm.
@@ -54,6 +57,7 @@ At 400–1000 creators screened per day, expect roughly **$130–$400/month**, m
 | enabled | TRUE / FALSE |
 | name | short label for this campaign |
 | platforms | comma list: `x,youtube,instagram,tiktok` |
+| regions | optional ISO country codes, e.g. `US,GB` (used by EasyKOL) |
 | keywords | topic in your own words |
 | description | what kind of creator you want |
 | language | X language code, e.g. `en`; empty = any |

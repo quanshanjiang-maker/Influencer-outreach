@@ -16,6 +16,7 @@ class Criteria:
     min_avg_likes: float = 0.0
     max_candidates: int = 200
     enabled: bool = True
+    regions: list[str] = field(default_factory=list)   # ISO country codes, used by EasyKOL
     platforms: list[str] = field(default_factory=lambda: ["x"])
 
 
@@ -52,6 +53,10 @@ class Creator:
     lang: str = ""
     tweets: list[Post] = field(default_factory=list)
     matched_queries: set[str] = field(default_factory=set)
+    email: str = ""
+    email_source: str = ""
+    relevance: float = 0.0      # provider's own relevance score, 0-1, if any
+    match_reason: str = ""
 
     @property
     def key(self) -> str:

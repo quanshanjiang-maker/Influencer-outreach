@@ -17,7 +17,7 @@ def merge(found: dict[str, Creator], creator: Creator, tweet: Post, query: str) 
         c.lang = tweet.lang
 
 
-def passes(c: Creator, criteria: Criteria, known: set[str]) -> bool:
+def passes(c: Creator, criteria: Criteria, known: set[str], prefiltered: bool = False) -> bool:
     if c.key in known:
         return False
     if c.followers < criteria.min_followers:
@@ -26,11 +26,11 @@ def passes(c: Creator, criteria: Criteria, known: set[str]) -> bool:
         return False
     if criteria.language and c.lang and c.lang != criteria.language:
         return False
-    if c.avg_likes < criteria.min_avg_likes:
+    if not prefiltered and c.avg_likes < criteria.min_avg_likes:
         return False
     return True
 
 
 def rank(creators: list[Creator]) -> list[Creator]:
     """More matched queries and more engagement first."""
-    return sorted(creators, key=lambda c: (len(c.matched_queries), c.avg_likes), reverse=True)
+    return sorted(creators, key=lambda c: (len(c.matched_queries), c.relevance, c.avg_likes), reverse=True)

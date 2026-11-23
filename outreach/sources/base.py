@@ -10,6 +10,8 @@ class Source(ABC):
     """Interface every platform data provider implements."""
 
     platform: str = ""
+    expands_queries: bool = True   # False: pass the criteria sentence as-is (provider does semantics)
+    prefiltered: bool = False      # True: provider already applied follower/engagement filters
 
     @abstractmethod
     def search(self, query: str, max_pages: int) -> Iterator[tuple[Creator, Post]]:

@@ -10,7 +10,7 @@
 
 1. 你在表格的 **Criteria** 页写今天的话题和条件。
 2. Claude 把每个话题扩展成一组 X 高级搜索语句 (advanced-search queries)，包括同义词、产品名、标签 (hashtag)。
-3. 各平台的数据源适配器 (adapter) 执行搜索（X 用 TwitterAPI.io，YouTube 用官方 YouTube Data API 免费配额，Instagram 和 TikTok 用 Apify），按作者合并，再按粉丝数、语言、互动率 (engagement) 粗筛 (pre-filter)。
+3. 各平台的数据源适配器 (adapter) 执行搜索（X 用 TwitterAPI.io，YouTube 用官方 YouTube Data API 免费配额，Instagram 和 TikTok 用 Apify；也可以在 `config.yaml` 的 `providers` 里把 YouTube/IG/TikTok 换成 [EasyKOL](https://easykol.com/en/pricing)，它自带语义搜索并返回邮箱），按作者合并，再按粉丝数、语言、互动率 (engagement) 粗筛 (pre-filter)。
 4. *（下一步）* Claude 读博主的 bio 和近期推文打分，并写个性化开场白 (personalized opener)。
 5. *（下一步）* 找邮箱（bio、网站、Hunter）并验证 (verify)（MillionVerifier）。
 6. *（下一步）* Slack 机器人推送名单，你用大白话回复（“8 分以上都发，跳过 @foo”），确认后发出。
