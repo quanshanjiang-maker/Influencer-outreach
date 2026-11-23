@@ -1,0 +1,22 @@
+# Copy to config.yaml and edit. 复制为 config.yaml 再修改。
+# Search criteria live in the "Criteria" sheet tab so you can change them daily
+# without touching code. 搜索标准写在表格的 Criteria 页，每天可改。
+
+models:
+  # Writes X search queries from your keywords. 把关键词扩展成 X 搜索语句。
+  query_expansion: claude-opus-5-5
+  # Bulk relevance scoring (step 4). 批量相关度打分（第 4 步）。
+  scoring: claude-haiku-5-5
+
+data_source: twitterapi_io   # twitterapi_io (more adapters later)
+
+search:
+  queries_per_criteria: 12     # how many search queries Claude writes per criteria row
+  pages_per_query: 3           # 20 tweets per page
+  daily_tweet_budget: 20000    # hard stop on tweets fetched per run (cost control)
+
+sheet_tabs:
+  criteria: Criteria
+  candidates: Candidates
+  outreach: Outreach
+  templates: Templates
