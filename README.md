@@ -2,14 +2,14 @@
 
 [中文说明](README.zh-CN.md)
 
-Find creators on X (Twitter), YouTube, Instagram and TikTok by topic every day, collect their stats and emails into Google Sheets, approve them by chatting with a Slack bot, send personalized emails, and track replies.
+Find creators on X (Twitter), YouTube, Instagram and TikTok by topic every day, collect their stats and emails into Google Sheets, approve them by chatting (with Claude or a Slack bot), send personalized emails from Gmail or any company mailbox, and track replies.
 
-> Status: early development. Sheet setup, creator search, scoring and email finding work. Sending, reply tracking and the Slack bot are next.
+> Status: early development, not yet tested against live APIs. Sheet setup, search on all four platforms, scoring, email finding, sending and reply tracking are in place. The Slack bot is next.
 
 ## How it works
 
 1. You write today's topics in the **Criteria** tab of a Google Sheet.
-2. Claude expands each topic into a set of X advanced-search queries (synonyms, product names, hashtags).
+2. Claude expands each topic into search queries written for each platform: X advanced search, YouTube keywords, Instagram hashtags, TikTok keywords (synonyms, product names, hashtags).
 3. Each platform's adapter runs the searches; authors are grouped and filtered by followers, language and engagement.
 
 | platform | data source | key | rough price |
@@ -21,16 +21,17 @@ Find creators on X (Twitter), YouTube, Instagram and TikTok by topic every day, 
 | YouTube / Instagram / TikTok (alternative) | [EasyKOL](https://easykol.com/en/pricing) [API](https://github.com/iftechio/easykol-skills/blob/main/docs/api.md) | `EASYKOL_API_KEY`, `EASYKOL_API_EMAIL` | your EasyKOL plan's task points; returns emails |
 
 Pick the provider per platform under `providers:` in `config.yaml`.
+
 4. Claude scores each creator's bio and recent posts for relevance and writes a personalized opener.
 5. Emails are found (bio, website, Hunter) and verified (MillionVerifier).
-6. *(next)* A Slack bot posts the shortlist; you reply in plain language ("send everyone 8+, skip @foo") and confirm.
-7. *(next)* Emails go out through Gmail API or any SMTP/IMAP mailbox; replies are detected and classified.
+6. You approve by chat: tell Claude (Claude Code reads `CLAUDE.md`) "send everyone 8+, skip @foo", and it runs `approve` after you confirm. *(next)* The same through a Slack bot.
+7. Emails go out through the Gmail API or any SMTP/IMAP mailbox, rotating across mailboxes within daily limits. Replies and bounces are detected and classified (interested, pricing, declined, unsubscribe...), and rows with no reply after N days become `followup_due` for your approval.
 
 Everything runs on GitHub Actions. You bring your own API keys; nothing is shared.
 
 ## Cost (your own accounts)
 
-At 400–1000 creators screened per day, expect roughly **$130–$400/month**, mostly X data (pay-as-you-go) and Claude API usage. Google Sheets, Gmail API and GitHub Actions (public repos) are free.
+At 400–1000 creators screened per day, expect roughly **$130–$400/month**, mostly data providers (pay-as-you-go) and Claude API usage. The cheapest mix (X via TwitterAPI.io, YouTube free API, IG/TikTok via EasyKOL or Apify) runs about $60–170/month. Google Sheets, Gmail API and GitHub Actions (public repos) are free.
 
 ## Setup
 
@@ -49,9 +50,22 @@ At 400–1000 creators screened per day, expect roughly **$130–$400/month**, m
    python -m outreach score --dry-run    # preview scores and openers
    python -m outreach score              # write score, reason, tags, opener
    python -m outreach emails             # find + verify emails; status becomes ready or no_email
+   python -m outreach approve --min-score 8        # or --handles alice,youtube:bob
+   python -m outreach send --dry-run     # preview the emails
+   python -m outreach send               # send approved rows
+   python -m outreach replies            # check replies, bounces, follow-ups due
    ```
    Quick test without a sheet: `python -m outreach search --keywords "AI video tools" --lang en --platforms x,youtube`
-5. **GitHub Actions**: add `ANTHROPIC_API_KEY`, the platform keys you use (`TWITTERAPI_IO_KEY`, `YOUTUBE_API_KEY`, `APIFY_TOKEN`), `GOOGLE_SERVICE_ACCOUNT_JSON` (paste the whole JSON) and `SHEET_ID` under *Settings → Secrets and variables → Actions*, then run **Daily creator search** from the Actions tab. Uncomment the `schedule` block to run daily.
+5. **GitHub Actions**: add `ANTHROPIC_API_KEY`, the platform keys you use (`TWITTERAPI_IO_KEY`, `YOUTUBE_API_KEY`, `APIFY_TOKEN`), `GOOGLE_SERVICE_ACCOUNT_JSON` (paste the whole JSON) and `SHEET_ID` under *Settings → Secrets and variables → Actions*, then run **Daily creator pipeline** from the Actions tab. Uncomment the `schedule` block to run daily.
+
+## Mailboxes
+
+List sending mailboxes under `mailboxes:` in `config.yaml`; secrets stay in env vars / GitHub Secrets named by the `*_env` fields.
+
+- **Gmail / Google Workspace** (`type: gmail`): in Google Cloud enable the *Gmail API*, create an OAuth client (Desktop app), download it, then run `python -m outreach gmail-auth --client-secret client_secret.json` once per mailbox and store the printed refresh token as a secret.
+- **Any other provider** (`type: smtp`): Microsoft 365, Tencent Exmail, Zoho, Fastmail etc. Fill `smtp_host`, `imap_host` and an app password.
+
+Keep `daily_limit` low (start at 10–20 per new mailbox and warm up over weeks), set up SPF/DKIM/DMARC, and prefer a secondary domain for cold email. Edit the `default` and `followup` rows in the Templates tab; `{name}`, `{opener}`, `{username}`, `{platform}` are filled in.
 
 ## Criteria tab
 
@@ -63,14 +77,14 @@ At 400–1000 creators screened per day, expect roughly **$130–$400/month**, m
 | regions | optional ISO country codes, e.g. `US,GB` (used by EasyKOL) |
 | keywords | topic in your own words |
 | description | what kind of creator you want |
-| language | X language code, e.g. `en`; empty = any |
+| language | language code, e.g. `en`; empty = any |
 | min_followers / max_followers | follower range (0 = no max) |
 | min_avg_likes | minimum average likes on matched posts |
 | max_candidates | how many creators to keep per day |
 
 ## Adding another data source or mailbox
 
-Data providers implement `outreach/sources/base.py:Source` and register in `outreach/sources/__init__.py`. Mail providers will follow the same adapter pattern (Gmail API first, generic SMTP/IMAP second).
+Data providers implement `outreach/sources/base.py:Source` and register in `outreach/sources/__init__.py`. Mailboxes implement `outreach/mail/base.py:Mailbox` (`send`, `replies`) and register in `outreach/mail/__init__.py`.
 
 ## Responsible use
 

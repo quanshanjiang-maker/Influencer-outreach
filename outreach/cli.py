@@ -4,6 +4,10 @@
     python -m outreach search [--dry-run] [--criteria NAME]
     python -m outreach score [--dry-run] [--limit N]
     python -m outreach emails [--dry-run] [--limit N]
+    python -m outreach approve --handles alice,youtube:bob | --min-score 8 [--followups]
+    python -m outreach send [--dry-run] [--max N]
+    python -m outreach replies [--dry-run]
+    python -m outreach gmail-auth --client-secret client_secret.json
     python -m outreach search --keywords "AI video tools" --lang en   # no sheet needed
 """
 from __future__ import annotations
@@ -200,6 +204,134 @@ def cmd_emails(cfg, args) -> int:
     return 0
 
 
+def _sheet(cfg):
+    from .sheets import Sheet
+    return Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs)
+
+
+def cmd_approve(cfg, args) -> int:
+    from .send import select_for_approval
+
+    sheet = _sheet(cfg)
+    handles = [h for h in (args.handles or "").split(",") if h.strip()]
+    if not handles and args.min_score is None:
+        print("Give --handles or --min-score (nothing is approved by default).")
+        return 1
+    skip = [h for h in (args.skip or "").split(",") if h.strip()]
+    picked = select_for_approval(sheet.read_candidates(), handles, args.min_score, args.followups, skip)
+    new = "followup_approved" if args.followups else "approved"
+    for _, r in picked:
+        print(f"{r.get('platform')}:{r.get('username')}\tscore={r.get('score')}\t{r.get('email')}")
+    if not args.dry_run:
+        sheet.update_candidates([(row, {"status": new}) for row, _ in picked])
+    print(f"{'Would approve' if args.dry_run else 'Approved'} {len(picked)} rows -> {new}.")
+    return 0
+
+
+def _rotation(cfg, sheet):
+    from .mail import get_mailbox
+    from .send import Rotation, sent_today
+
+    if not cfg.mailboxes:
+        raise SystemExit("No mailboxes in config.yaml (see config.example.yaml, section mailboxes).")
+    boxes = [(c, get_mailbox(c)) for c in cfg.mailboxes]
+    return Rotation(boxes, sent_today(sheet.read_outreach()))
+
+
+def cmd_send(cfg, args) -> int:
+    from .send import SENDABLE_STATUSES, send_batch, suppressed
+
+    sheet = _sheet(cfg)
+    rows = sheet.read_candidates()
+    todo = [(row, r) for row, r in rows if str(r.get("status", "")).strip() in SENDABLE_STATUSES]
+    if not todo:
+        print("Nothing approved to send.")
+        return 0
+    sc = cfg.sending or {}
+    rot = _rotation(cfg, sheet)
+    results = send_batch(
+        todo, sheet.read_templates(), rot, suppressed(rows),
+        max_send=args.max or int(sc.get("max_per_run", 50)),
+        delay=(float(sc.get("min_delay_seconds", 60)), float(sc.get("max_delay_seconds", 180))),
+        dry_run=args.dry_run,
+    )
+    if not args.dry_run:
+        sheet.update_candidates([(x.row, x.changes) for x in results])
+        sheet.append_outreach([x.log for x in results])
+    print(f"{'Would send' if args.dry_run else 'Sent'} {len(results)} of {len(todo)} approved emails.")
+    return 0
+
+
+def cmd_replies(cfg, args) -> int:
+    from datetime import datetime, timezone
+
+    import anthropic
+
+    from .send import classify_reply, followup_due
+
+    sheet = _sheet(cfg)
+    sc = cfg.sending or {}
+    after, max_fu = int(sc.get("followup_after_days", 4)), int(sc.get("max_followups", 1))
+    sent = [(row, r) for row, r in sheet.read_candidates() if str(r.get("status", "")).strip() == "sent"]
+    if not sent:
+        print("No sent emails to check.")
+        return 0
+    rot = _rotation(cfg, sheet)
+    boxes = {c["address"]: m for c, m in rot.boxes}
+    client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
+    model = cfg.models.get("replies", cfg.models.get("scoring", "claude-haiku-5-5"))
+    now = datetime.now(timezone.utc)
+    updates, log_rows, counts = [], [], {}
+    for row, r in sent:
+        box, thread = boxes.get(str(r.get("send_from"))), str(r.get("thread_id", ""))
+        if box is None or not thread:
+            continue
+        try:
+            got = box.replies(thread)
+        except Exception as e:
+            print(f"  could not read thread for {r.get('username')}: {e}")
+            continue
+        change = None
+        if any(x.is_bounce for x in got):
+            change = {"status": "bounced", "email_status": "invalid", "reply_category": "bounce"}
+        elif got:
+            c = classify_reply(client, model, "\n\n".join(x.text for x in got))
+            if c.category == "auto_reply":  # out-of-office: treat like no reply yet
+                if followup_due(r, after, max_fu, now):
+                    change = {"status": "followup_due", "reply_category": "auto_reply"}
+            else:
+                status = "unsubscribed" if c.category == "unsubscribe" else "replied"
+                change = {"status": status, "reply_category": c.category, "reply_summary": c.summary}
+        elif followup_due(r, after, max_fu, now):
+            change = {"status": "followup_due"}
+        if change is None:
+            continue
+        counts[change["status"]] = counts.get(change["status"], 0) + 1
+        updates.append((row, change))
+        log_rows.append({"sent_at": r.get("sent_at", ""), "platform": r.get("platform", ""),
+                         "username": r.get("username", ""), "email": r.get("email", ""),
+                         "send_from": r.get("send_from", ""), "thread_id": thread,
+                         "followup_count": r.get("followup_count", 0),
+                         "last_event": change.get("reply_category") or change["status"],
+                         "last_event_at": now.isoformat(timespec="seconds")})
+        if args.dry_run:
+            print(f"{r.get('platform')}:{r.get('username')}\t{change}")
+    if not args.dry_run:
+        sheet.update_candidates(updates)
+        sheet.append_outreach(log_rows)
+    print(f"Checked {len(sent)} threads: " + (", ".join(f"{k}={v}" for k, v in counts.items()) or "no change"))
+    return 0
+
+
+def cmd_gmail_auth(cfg, args) -> int:
+    from .mail.gmail import authorize
+
+    token = authorize(args.client_secret)
+    print("Refresh token (store it as a secret, e.g. GMAIL1_REFRESH_TOKEN; do not commit it):")
+    print(token)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="outreach")
     p.add_argument("--config", default="config.yaml")
@@ -219,12 +351,27 @@ def main(argv: list[str] | None = None) -> int:
     em = sub.add_parser("emails", help="find and verify emails for scored candidates")
     em.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
     em.add_argument("--limit", type=int, help="process at most N candidates")
+    ap = sub.add_parser("approve", help="approve ready rows for sending (only changes the sheet)")
+    ap.add_argument("--handles", help="comma list: alice,@bob,youtube:carol")
+    ap.add_argument("--min-score", type=int, help="approve every ready row with score >= N")
+    ap.add_argument("--skip", help="comma list of handles to leave out")
+    ap.add_argument("--followups", action="store_true", help="approve followup_due rows instead")
+    ap.add_argument("--dry-run", action="store_true")
+    se = sub.add_parser("send", help="email approved rows")
+    se.add_argument("--dry-run", action="store_true", help="print the emails instead of sending")
+    se.add_argument("--max", type=int, help="send at most N this run")
+    rp = sub.add_parser("replies", help="check sent threads for replies, bounces and follow-ups")
+    rp.add_argument("--dry-run", action="store_true")
+    ga = sub.add_parser("gmail-auth", help="one-time: get a Gmail refresh token")
+    ga.add_argument("--client-secret", required=True, help="OAuth client JSON from Google Cloud")
     args = p.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(levelname)s %(message)s")
     cfg = load_config(args.config)
-    return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails}[args.cmd](cfg, args)
+    return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
+            "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
+            "gmail-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
