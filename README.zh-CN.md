@@ -4,7 +4,7 @@
 
 每天按话题自动在 X、YouTube、Instagram、TikTok 上找博主，把数据和邮箱整理到 Google Sheets，在 Slack 里用聊天的方式审批，自动发送个性化邮件并追踪回复。
 
-> 状态：开发中。建表、搜索博主、打分已可用。找邮箱、发信、回复追踪和 Slack 机器人 (bot) 是接下来的步骤。
+> 状态：开发中。建表、搜索博主、打分、找邮箱已可用。发信、回复追踪和 Slack 机器人 (bot) 是接下来的步骤。
 
 ## 工作流程 (how it works)
 
@@ -12,7 +12,7 @@
 2. Claude 把每个话题扩展成一组 X 高级搜索语句 (advanced-search queries)，包括同义词、产品名、标签 (hashtag)。
 3. 各平台的数据源适配器 (adapter) 执行搜索（X 用 TwitterAPI.io，YouTube 用官方 YouTube Data API 免费配额，Instagram 和 TikTok 用 Apify；也可以在 `config.yaml` 的 `providers` 里把 YouTube/IG/TikTok 换成 [EasyKOL](https://easykol.com/en/pricing)，它自带语义搜索并返回邮箱），按作者合并，再按粉丝数、语言、互动率 (engagement) 粗筛 (pre-filter)。
 4. Claude 读博主的 bio 和近期推文打分，并写个性化开场白 (personalized opener)。
-5. *（下一步）* 找邮箱（bio、网站、Hunter）并验证 (verify)（MillionVerifier）。
+5. 找邮箱（bio、网站、Hunter）并验证 (verify)（MillionVerifier）。
 6. *（下一步）* Slack 机器人推送名单，你用大白话回复（“8 分以上都发，跳过 @foo”），确认后发出。
 7. *（下一步）* 通过 Gmail API 或任意 SMTP/IMAP 邮箱发信，自动检测并分类回复。
 
@@ -38,6 +38,7 @@
    python -m outreach search             # 写入 Candidates 页
    python -m outreach score --dry-run    # 预览打分和开场白
    python -m outreach score              # 写入分数、理由、标签、开场白
+   python -m outreach emails             # 找邮箱并验证，状态变为 ready 或 no_email
    ```
    不建表快速试用：`python -m outreach search --keywords "AI video tools" --lang en --platforms x,youtube`
 5. **GitHub Actions**：在 *Settings → Secrets and variables → Actions* 添加 `ANTHROPIC_API_KEY`、你用到的平台 key（`TWITTERAPI_IO_KEY`、`YOUTUBE_API_KEY`、`APIFY_TOKEN`）、`GOOGLE_SERVICE_ACCOUNT_JSON`（粘贴整段 JSON）和 `SHEET_ID`，然后在 Actions 页手动运行 **Daily creator search**。取消注释 `schedule` 即可每天自动运行。

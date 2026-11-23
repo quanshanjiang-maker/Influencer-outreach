@@ -22,6 +22,8 @@ class Config:
     twitterapi_io_key: str | None = None
     youtube_api_key: str | None = None
     apify_token: str | None = None
+    hunter_api_key: str | None = None
+    millionverifier_api_key: str | None = None
     easykol_api_key: str | None = None
     easykol_api_email: str | None = None
     providers: dict = field(default_factory=dict)
@@ -56,6 +58,8 @@ def load_config(path: str | os.PathLike = "config.yaml") -> Config:
         twitterapi_io_key=os.getenv("TWITTERAPI_IO_KEY"),
         youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
         apify_token=os.getenv("APIFY_TOKEN"),
+        hunter_api_key=os.getenv("HUNTER_API_KEY"),
+        millionverifier_api_key=os.getenv("MILLIONVERIFIER_API_KEY"),
         easykol_api_key=os.getenv("EASYKOL_API_KEY"),
         easykol_api_email=os.getenv("EASYKOL_API_EMAIL"),
         providers=raw.get("providers", {}),
