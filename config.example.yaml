@@ -7,6 +7,8 @@ models:
   query_expansion: claude-opus-5-5
   # Scores each creator and drafts the email opener. 打分并写开场白。
   scoring: claude-haiku-5-5
+  # Understands your Slack messages. 理解你在 Slack 里说的话。
+  chat: claude-haiku-5-5
 
 # Platforms are chosen per row in the Criteria tab (column "platforms"):
 #   x          -> TwitterAPI.io        (TWITTERAPI_IO_KEY)

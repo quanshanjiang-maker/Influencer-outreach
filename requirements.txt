@@ -5,3 +5,4 @@ PyYAML>=6.0
 python-dotenv>=1.0
 pydantic>=2.7
 google-auth-oauthlib>=1.2
+# Optional, only for real-time Slack: slack_bolt>=1.21

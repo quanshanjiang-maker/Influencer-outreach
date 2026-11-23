@@ -4,7 +4,7 @@
 
 Find creators on X (Twitter), YouTube, Instagram and TikTok by topic every day, collect their stats and emails into Google Sheets, approve them by chatting (with Claude or a Slack bot), send personalized emails from Gmail or any company mailbox, and track replies.
 
-> Status: early development, not yet tested against live APIs. Sheet setup, search on all four platforms, scoring, email finding, sending and reply tracking are in place. The Slack bot is next.
+> Status: early development, not yet tested against live APIs. Sheet setup, search on all four platforms, scoring, email finding, sending and reply tracking are in place. The Slack bot is in place too.
 
 ## How it works
 
@@ -24,7 +24,7 @@ Pick the provider per platform under `providers:` in `config.yaml`.
 
 4. Claude scores each creator's bio and recent posts for relevance and writes a personalized opener.
 5. Emails are found (bio, website, Hunter) and verified (MillionVerifier).
-6. You approve by chat: tell Claude (Claude Code reads `CLAUDE.md`) "send everyone 8+, skip @foo", and it runs `approve` after you confirm. *(next)* The same through a Slack bot.
+6. You approve by chat: tell Claude (Claude Code reads `CLAUDE.md`) "send everyone 8+, skip @foo", and it runs `approve` after you confirm. Or reply to the Slack bot's daily shortlist thread; it restates what it understood and acts only after you say "confirm".
 7. Emails go out through the Gmail API or any SMTP/IMAP mailbox, rotating across mailboxes within daily limits. Replies and bounces are detected and classified (interested, pricing, declined, unsubscribe...), and rows with no reply after N days become `followup_due` for your approval.
 
 Everything runs on GitHub Actions. You bring your own API keys; nothing is shared.
@@ -66,6 +66,15 @@ List sending mailboxes under `mailboxes:` in `config.yaml`; secrets stay in env 
 - **Any other provider** (`type: smtp`): Microsoft 365, Tencent Exmail, Zoho, Fastmail etc. Fill `smtp_host`, `imap_host` and an app password.
 
 Keep `daily_limit` low (start at 10–20 per new mailbox and warm up over weeks), set up SPF/DKIM/DMARC, and prefer a secondary domain for cold email. Edit the `default` and `followup` rows in the Templates tab; `{name}`, `{opener}`, `{username}`, `{platform}` are filled in.
+
+## Slack bot (optional)
+
+1. Create a Slack app from `slack-app-manifest.yml` (api.slack.com/apps → *From a manifest*), install it to your workspace, and invite it to a channel (`/invite @outreach-bot`).
+2. Add secrets `SLACK_BOT_TOKEN` (xoxb-...) and `SLACK_CHANNEL_ID` (channel details → bottom).
+3. The daily pipeline posts the shortlist (`python -m outreach slack digest`). Reply in its thread in plain language: "send everyone 8+, skip @foo", "make @bar's opener more casual", "send the follow-ups", "who replied?".
+4. Replies are read by **Slack bot (polling)** every 15 minutes on GitHub Actions (free; uncomment its schedule). For instant answers, run `pip install slack_bolt` and `python -m outreach slack listen` on a small always-on server with `SLACK_APP_TOKEN` (xapp-..., Socket Mode).
+
+The bot only changes the sheet (approve, skip, edit openers); emails go out on the next `send` run.
 
 ## Criteria tab
 

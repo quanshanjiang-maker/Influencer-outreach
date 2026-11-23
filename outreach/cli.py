@@ -7,6 +7,7 @@
     python -m outreach approve --handles alice,youtube:bob | --min-score 8 [--followups]
     python -m outreach send [--dry-run] [--max N]
     python -m outreach replies [--dry-run]
+    python -m outreach slack digest | poll | listen
     python -m outreach gmail-auth --client-secret client_secret.json
     python -m outreach search --keywords "AI video tools" --lang en   # no sheet needed
 """
@@ -332,6 +333,32 @@ def cmd_gmail_auth(cfg, args) -> int:
     return 0
 
 
+def cmd_slack(cfg, args) -> int:
+    import anthropic
+
+    from . import slack_bot as sb
+
+    sheet = _sheet(cfg)
+    slack = sb.Slack(cfg.slack_bot_token, cfg.slack_channel_id)
+    if args.action == "digest":
+        text = sb.digest_text(sheet.read_candidates())
+        if args.dry_run:
+            print(text)
+        else:
+            slack.post(text, event=sb.DIGEST_EVENT)
+            print("Posted digest.")
+        return 0
+    ctx = sb.Context(slack, sheet, anthropic.Anthropic(api_key=cfg.anthropic_api_key),
+                     cfg.models.get("chat", cfg.models.get("scoring", "claude-haiku-5-5")))
+    if args.action == "poll":
+        sb.poll(ctx)
+    else:
+        if not cfg.slack_app_token:
+            raise SystemExit("Socket Mode needs SLACK_APP_TOKEN (xapp-...) and `pip install slack_bolt`.")
+        sb.listen(ctx, cfg.slack_app_token)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="outreach")
     p.add_argument("--config", default="config.yaml")
@@ -362,6 +389,9 @@ def main(argv: list[str] | None = None) -> int:
     se.add_argument("--max", type=int, help="send at most N this run")
     rp = sub.add_parser("replies", help="check sent threads for replies, bounces and follow-ups")
     rp.add_argument("--dry-run", action="store_true")
+    sl = sub.add_parser("slack", help="Slack bot: post the shortlist and answer thread replies")
+    sl.add_argument("action", choices=["digest", "poll", "listen"])
+    sl.add_argument("--dry-run", action="store_true", help="digest: print instead of posting")
     ga = sub.add_parser("gmail-auth", help="one-time: get a Gmail refresh token")
     ga.add_argument("--client-secret", required=True, help="OAuth client JSON from Google Cloud")
     args = p.parse_args(argv)
@@ -371,7 +401,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(args.config)
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
-            "gmail-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "slack": cmd_slack, "gmail-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

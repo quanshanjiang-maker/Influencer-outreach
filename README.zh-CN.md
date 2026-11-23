@@ -4,7 +4,7 @@
 
 每天按话题自动在 X、YouTube、Instagram、TikTok 上找博主，把数据和邮箱整理到 Google Sheets，在 Slack 里用聊天的方式审批，自动发送个性化邮件并追踪回复。
 
-> 状态：开发中，还没有用真实 API key 测试过。建表、四个平台搜索、打分、找邮箱、发信、回复追踪已写好。Slack 机器人 (bot) 是下一步。
+> 状态：开发中，还没有用真实 API key 测试过。建表、四个平台搜索、打分、找邮箱、发信、回复追踪已写好。Slack 机器人 (bot) 也已写好。
 
 ## 工作流程 (how it works)
 
@@ -13,7 +13,7 @@
 3. 各平台的数据源适配器 (adapter) 执行搜索（X 用 TwitterAPI.io，YouTube 用官方 YouTube Data API 免费配额，Instagram 和 TikTok 用 Apify；也可以在 `config.yaml` 的 `providers` 里把 YouTube/IG/TikTok 换成 [EasyKOL](https://easykol.com/en/pricing)，它自带语义搜索并返回邮箱），按作者合并，再按粉丝数、语言、互动率 (engagement) 粗筛 (pre-filter)。
 4. Claude 读博主的 bio 和近期内容打分，并写个性化开场白 (personalized opener)。
 5. 找邮箱（bio、网站、Hunter）并验证 (verify)（MillionVerifier）。
-6. 用聊天审批 (approval)：跟 Claude 说“8 分以上都发，跳过 @foo”（Claude Code 会读仓库里的 `CLAUDE.md`），你确认后它运行 `approve`。*（下一步）* 也可以跟 Slack 机器人说。
+6. 用聊天审批 (approval)：跟 Claude 说“8 分以上都发，跳过 @foo”（Claude Code 会读仓库里的 `CLAUDE.md`），你确认后它运行 `approve`。也可以在 Slack 机器人每天发的名单子线程里回复，它会先复述它的理解，你回“确认”后才执行。
 7. 通过 Gmail API 或任意 SMTP/IMAP 邮箱发信，多个邮箱轮流发 (inbox rotation) 并遵守每日上限 (daily limit)。自动检测回复和退信 (bounce)，并分类（感兴趣、报价、拒绝、退订……）；N 天没回复的标为 `followup_due`，等你批准后发跟进 (follow-up)。
 
 全部跑在 GitHub Actions 上。每个人用自己的 API key，互不共享。
@@ -55,6 +55,15 @@
 - **其他任何服务商**（`type: smtp`）：微软 365、腾讯企业邮、Zoho、Fastmail 等，填 `smtp_host`、`imap_host` 和应用专用密码 (app password)。
 
 `daily_limit` 先设低一点（新邮箱每天 10 到 20 封，几周内慢慢加，即预热 warm-up），配好 SPF/DKIM/DMARC，冷邮件 (cold email) 最好用副域名 (secondary domain)。在 Templates 页改 `default` 和 `followup` 两行模板，`{name}`、`{opener}`、`{username}`、`{platform}` 会自动填入。
+
+## Slack 机器人（可选）
+
+1. 在 api.slack.com/apps 选 *From a manifest*，粘贴仓库里的 `slack-app-manifest.yml` 创建应用 (app)，安装到工作区 (workspace)，再把机器人邀请进一个频道 (channel)：`/invite @outreach-bot`。
+2. 添加 Secrets：`SLACK_BOT_TOKEN`（xoxb- 开头）和 `SLACK_CHANNEL_ID`（频道详情最下方）。
+3. 每天的流程会把名单发到频道（`python -m outreach slack digest`）。你在子线程 (thread) 里用大白话回复：“8 分以上都发，跳过 @foo”、“@bar 的开场白写轻松点”、“跟进都发”、“谁回复了”。
+4. 默认由 GitHub Actions 的 **Slack bot (polling)** 每 15 分钟读一次回复（免费，取消注释 schedule 即可）。想秒回的话，在一台常驻小服务器上 `pip install slack_bolt`，配好 `SLACK_APP_TOKEN`（xapp- 开头，Socket Mode），运行 `python -m outreach slack listen`。
+
+机器人只改表格（批准、跳过、改开场白），邮件在下一次 `send` 定时运行时发出。
 
 ## 合规使用 (responsible use)
 
