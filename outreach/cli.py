@@ -3,6 +3,7 @@
     python -m outreach setup-sheet
     python -m outreach search [--dry-run] [--criteria NAME]
     python -m outreach score [--dry-run] [--limit N]
+    python -m outreach emails [--dry-run] [--limit N]
     python -m outreach search --keywords "AI video tools" --lang en   # no sheet needed
 """
 from __future__ import annotations
@@ -160,6 +161,45 @@ def cmd_score(cfg, args) -> int:
     return 0
 
 
+def cmd_emails(cfg, args) -> int:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from .emails import SENDABLE, find_email, verify
+    from .sheets import Sheet
+
+    sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs)
+    todo = [(row, r) for row, r in sheet.read_candidates()
+            if str(r.get("status", "")).strip() == "scored" and not str(r.get("email_status", "")).strip()]
+    todo = todo[: args.limit] if args.limit else todo
+    if not todo:
+        print("No scored candidates waiting for an email.")
+        return 0
+
+    def one(item):
+        row, r = item
+        res = find_email(str(r.get("email", "")), str(r.get("email_source", "")),
+                         str(r.get("bio", "")), str(r.get("website", "")), cfg.hunter_api_key)
+        return row, r, verify(res, cfg.millionverifier_api_key)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(one, todo))
+
+    updates, ready = [], 0
+    for row, r, res in results:
+        sendable = res.status in SENDABLE
+        ready += sendable
+        updates.append((row, {
+            "email": res.email, "email_source": res.source, "email_status": res.status,
+            "status": "ready" if sendable else "no_email",
+        }))
+        if args.dry_run:
+            print(f"{r.get('platform')}:{r.get('username')}\t{res.email or '-'}\t{res.source}\t{res.status}")
+    if not args.dry_run:
+        sheet.update_candidates(updates)
+    print(f"Checked {len(results)}; {ready} ready to email, {len(results) - ready} need another channel (DM).")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="outreach")
     p.add_argument("--config", default="config.yaml")
@@ -176,12 +216,15 @@ def main(argv: list[str] | None = None) -> int:
     sc = sub.add_parser("score", help="score new candidates and draft openers")
     sc.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
     sc.add_argument("--limit", type=int, help="score at most N candidates")
+    em = sub.add_parser("emails", help="find and verify emails for scored candidates")
+    em.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
+    em.add_argument("--limit", type=int, help="process at most N candidates")
     args = p.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(levelname)s %(message)s")
     cfg = load_config(args.config)
-    return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score}[args.cmd](cfg, args)
+    return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

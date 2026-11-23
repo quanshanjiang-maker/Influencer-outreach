@@ -1,4 +1,4 @@
-name: Daily creator search
+name: Daily creator pipeline
 
 on:
   workflow_dispatch: {}
@@ -26,6 +26,22 @@ jobs:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
           EASYKOL_API_KEY: ${{ secrets.EASYKOL_API_KEY }}
           EASYKOL_API_EMAIL: ${{ secrets.EASYKOL_API_EMAIL }}
+          HUNTER_API_KEY: ${{ secrets.HUNTER_API_KEY }}
+          MILLIONVERIFIER_API_KEY: ${{ secrets.MILLIONVERIFIER_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           SHEET_ID: ${{ secrets.SHEET_ID }}
         run: python -m outreach search -v
+      - name: Score
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TWITTERAPI_IO_KEY: ${{ secrets.TWITTERAPI_IO_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python -m outreach score -v
+      - name: Find emails
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          HUNTER_API_KEY: ${{ secrets.HUNTER_API_KEY }}
+          MILLIONVERIFIER_API_KEY: ${{ secrets.MILLIONVERIFIER_API_KEY }}
+        run: python -m outreach emails -v
