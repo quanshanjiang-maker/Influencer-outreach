@@ -18,6 +18,7 @@ beyond a dry run.
 
 - `python -m outreach approve --handles alice,youtube:bob` or `--min-score 8` approves `ready` rows (sheet only, sends nothing); `--skip foo,bar` leaves some out.
   Add `--followups` to approve `followup_due` rows instead. Use `--dry-run` first to show the list.
+- `python -m outreach test-email` sends one test email from each mailbox to its own address (safe check after setup).
 - `python -m outreach send --dry-run` prints every email that would go out; `python -m outreach send [--max N]` sends approved rows.
 - `python -m outreach replies [--dry-run]` reads sent threads: replied / bounced / unsubscribed / followup_due.
 - `python -m outreach slack digest [--dry-run]` posts the shortlist to Slack; `slack poll` answers new thread replies; `slack listen` is real-time Socket Mode.
