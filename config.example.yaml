@@ -5,7 +5,7 @@
 models:
   # Writes X search queries from your keywords. 把关键词扩展成 X 搜索语句。
   query_expansion: claude-opus-5-5
-  # Bulk relevance scoring (step 4). 批量相关度打分（第 4 步）。
+  # Scores each creator and drafts the email opener. 打分并写开场白。
   scoring: claude-haiku-5-5
 
 # Platforms are chosen per row in the Criteria tab (column "platforms"):
@@ -40,6 +40,12 @@ search:
     youtube: 5000
     instagram: 3000
     tiktok: 3000
+
+scoring:
+  min_score: 7              # 0-10; below this a candidate is marked rejected
+  max_per_run: 1000
+  workers: 8                # parallel Claude calls
+  fetch_recent_posts: true  # X only: pull the last 20 tweets (~$0.003 per creator)
 
 sheet_tabs:
   criteria: Criteria

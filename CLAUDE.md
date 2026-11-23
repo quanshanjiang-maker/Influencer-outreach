@@ -12,6 +12,7 @@ beyond a dry run.
 - `python -m outreach setup-sheet` creates the Google Sheet tabs.
 - `python -m outreach search --dry-run` previews today's creators from the Criteria tab.
 - `python -m outreach search` writes them to the Candidates tab.
+- `python -m outreach score [--dry-run] [--limit N]` scores new candidates (0-10) and drafts openers.
 - `python -m outreach search --keywords "..." --lang en --platforms x,youtube,instagram,tiktok` quick search without a sheet.
 
 Approval, sending and reply commands are coming in later steps; add them here as they land.
