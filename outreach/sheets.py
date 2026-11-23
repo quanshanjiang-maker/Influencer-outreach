@@ -4,11 +4,12 @@ from __future__ import annotations
 from datetime import date
 
 import gspread
+from gspread.utils import rowcol_to_a1
 
 from .models import PLATFORMS, Creator, Criteria
 
 CRITERIA_HEADERS = [
-    "enabled", "name", "platforms", "regions", "keywords", "description", "language",
+    "enabled", "name", "platforms", "regions", "pitch", "keywords", "description", "language",
     "min_followers", "max_followers", "min_avg_likes", "max_candidates",
 ]
 
@@ -28,7 +29,9 @@ OUTREACH_HEADERS = [
 TEMPLATE_HEADERS = ["name", "subject", "body"]
 
 EXAMPLE_CRITERIA = [
-    "TRUE", "ai-video", "x,youtube", "US,GB", "AI video tools",
+    "TRUE", "ai-video", "x,youtube", "US,GB",
+    "We make an AI video editor and offer creators paid reviews plus an affiliate deal.",
+    "AI video tools",
     "Creators who review or teach AI video generation tools", "en",
     "5000", "200000", "20", "200",
 ]
@@ -58,6 +61,7 @@ class Sheet:
             raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON and SHEET_ID must be set")
         self.gc = gspread.service_account_from_dict(service_account)
         self.book = self.gc.open_by_key(sheet_id)
+        self._pitch: dict[str, str] = {}
         self.tabs = {
             "criteria": tabs.get("criteria", "Criteria"),
             "candidates": tabs.get("candidates", "Candidates"),
@@ -97,6 +101,7 @@ class Sheet:
             bad = [p for p in platforms if p not in PLATFORMS]
             if bad:
                 raise ValueError(f"Unknown platform(s) {bad} in Criteria row {r.get('name')}; use {PLATFORMS}")
+            self._pitch[str(r.get("name") or r.get("keywords"))] = str(r.get("pitch", "") or "")
             out.append(Criteria(
                 name=str(r.get("name") or r.get("keywords")),
                 keywords=str(r["keywords"]),
@@ -150,3 +155,22 @@ class Sheet:
         ws = self.book.worksheet(self.tabs["candidates"])
         ws.append_rows(rows, value_input_option="RAW")
         return len(rows)
+
+    def pitch_for(self, criteria_name: str) -> str:
+        return self._pitch.get(criteria_name, "")
+
+    def read_candidates(self) -> list[tuple[int, dict]]:
+        """(sheet row number, record) for every candidate row."""
+        ws = self.book.worksheet(self.tabs["candidates"])
+        return [(i + 2, r) for i, r in enumerate(ws.get_all_records())]
+
+    def update_candidates(self, updates: list[tuple[int, dict]]) -> int:
+        """Write {column: value} changes for many rows in one request."""
+        data = []
+        for row, changes in updates:
+            for col, value in changes.items():
+                data.append({"range": rowcol_to_a1(row, CANDIDATE_HEADERS.index(col) + 1),
+                             "values": [[value]]})
+        if data:
+            self.book.worksheet(self.tabs["candidates"]).batch_update(data, value_input_option="RAW")
+        return len(updates)

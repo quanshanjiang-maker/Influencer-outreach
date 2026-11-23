@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 class Config:
     models: dict = field(default_factory=dict)
     search: dict = field(default_factory=dict)
+    scoring: dict = field(default_factory=dict)
     sheet_tabs: dict = field(default_factory=dict)
 
     # secrets (from env)
@@ -49,6 +50,7 @@ def load_config(path: str | os.PathLike = "config.yaml") -> Config:
     return Config(
         models=raw.get("models", {}),
         search=raw.get("search", {}),
+        scoring=raw.get("scoring", {}),
         sheet_tabs=raw.get("sheet_tabs", {}),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
         twitterapi_io_key=os.getenv("TWITTERAPI_IO_KEY"),

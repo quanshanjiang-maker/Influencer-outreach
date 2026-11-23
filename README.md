@@ -4,7 +4,7 @@
 
 Find creators on X (Twitter), YouTube, Instagram and TikTok by topic every day, collect their stats and emails into Google Sheets, approve them by chatting with a Slack bot, send personalized emails, and track replies.
 
-> Status: early development. Step 1 (sheet setup + creator search) works. Scoring, email finding, sending, reply tracking and the Slack bot are next.
+> Status: early development. Sheet setup, creator search and scoring work. Email finding, sending, reply tracking and the Slack bot are next.
 
 ## How it works
 
@@ -21,7 +21,7 @@ Find creators on X (Twitter), YouTube, Instagram and TikTok by topic every day, 
 | YouTube / Instagram / TikTok (alternative) | [EasyKOL](https://easykol.com/en/pricing) [API](https://github.com/iftechio/easykol-skills/blob/main/docs/api.md) | `EASYKOL_API_KEY`, `EASYKOL_API_EMAIL` | your EasyKOL plan's task points; returns emails |
 
 Pick the provider per platform under `providers:` in `config.yaml`.
-4. *(next)* Claude scores each creator's bio and recent posts for relevance and writes a personalized opener.
+4. Claude scores each creator's bio and recent posts for relevance and writes a personalized opener.
 5. *(next)* Emails are found (bio, website, Hunter) and verified (MillionVerifier).
 6. *(next)* A Slack bot posts the shortlist; you reply in plain language ("send everyone 8+, skip @foo") and confirm.
 7. *(next)* Emails go out through Gmail API or any SMTP/IMAP mailbox; replies are detected and classified.
@@ -46,6 +46,8 @@ At 400–1000 creators screened per day, expect roughly **$130–$400/month**, m
    # edit the Criteria tab, then:
    python -m outreach search --dry-run   # preview
    python -m outreach search             # write to the Candidates tab
+   python -m outreach score --dry-run    # preview scores and openers
+   python -m outreach score              # write score, reason, tags, opener
    ```
    Quick test without a sheet: `python -m outreach search --keywords "AI video tools" --lang en --platforms x,youtube`
 5. **GitHub Actions**: add `ANTHROPIC_API_KEY`, the platform keys you use (`TWITTERAPI_IO_KEY`, `YOUTUBE_API_KEY`, `APIFY_TOKEN`), `GOOGLE_SERVICE_ACCOUNT_JSON` (paste the whole JSON) and `SHEET_ID` under *Settings → Secrets and variables → Actions*, then run **Daily creator search** from the Actions tab. Uncomment the `schedule` block to run daily.
