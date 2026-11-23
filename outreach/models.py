@@ -16,10 +16,12 @@ class Criteria:
     min_avg_likes: float = 0.0
     max_candidates: int = 200
     enabled: bool = True
+    platforms: list[str] = field(default_factory=lambda: ["x"])
 
 
 @dataclass
-class Tweet:
+class Post:
+    """A tweet, video, reel or post. Engagement fields are 0 when a platform lacks them."""
     id: str
     text: str
     url: str
@@ -31,9 +33,16 @@ class Tweet:
     created_at: str = ""
 
 
+Tweet = Post  # backwards-compatible name
+
+
+PLATFORMS = ("x", "youtube", "instagram", "tiktok")
+
+
 @dataclass
 class Creator:
     username: str
+    platform: str = "x"
     name: str = ""
     profile_url: str = ""
     followers: int = 0
@@ -41,8 +50,12 @@ class Creator:
     location: str = ""
     website: str = ""
     lang: str = ""
-    tweets: list[Tweet] = field(default_factory=list)
+    tweets: list[Post] = field(default_factory=list)
     matched_queries: set[str] = field(default_factory=set)
+
+    @property
+    def key(self) -> str:
+        return f"{self.platform}:{self.username.lower()}"
 
     @property
     def avg_likes(self) -> float:
@@ -51,5 +64,5 @@ class Creator:
         return sum(t.likes for t in self.tweets) / len(self.tweets)
 
     @property
-    def top_tweet(self) -> Tweet | None:
+    def top_tweet(self) -> Post | None:
         return max(self.tweets, key=lambda t: t.likes, default=None)

@@ -3,16 +3,24 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Iterator
 
-from ..models import Creator, Tweet
+from ..models import Creator, Post
 
 
-class XSource(ABC):
-    """Interface every X data provider implements."""
+class Source(ABC):
+    """Interface every platform data provider implements."""
 
-    @abstractmethod
-    def search(self, query: str, max_pages: int) -> Iterator[tuple[Creator, Tweet]]:
-        """Yield (author, tweet) pairs for an X advanced-search query."""
+    platform: str = ""
 
     @abstractmethod
-    def recent_tweets(self, username: str, limit: int = 20) -> list[Tweet]:
-        """Return a creator's most recent original tweets."""
+    def search(self, query: str, max_pages: int) -> Iterator[tuple[Creator, Post]]:
+        """Yield (author, post) pairs for a search query."""
+
+    def recent_posts(self, username: str, limit: int = 20) -> list[Post]:
+        """Return a creator's recent posts (used by scoring). Optional."""
+        return []
+
+    def enrich(self, creators: list[Creator]) -> None:
+        """Fill in profile fields (followers, bio) that search results lack. Optional."""
+
+
+XSource = Source  # backwards-compatible name

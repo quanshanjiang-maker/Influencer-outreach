@@ -8,12 +8,22 @@ models:
   # Bulk relevance scoring (step 4). 批量相关度打分（第 4 步）。
   scoring: claude-haiku-5-5
 
-data_source: twitterapi_io   # twitterapi_io (more adapters later)
+# Platforms are chosen per row in the Criteria tab (column "platforms"):
+#   x          -> TwitterAPI.io        (TWITTERAPI_IO_KEY)
+#   youtube    -> YouTube Data API v3  (YOUTUBE_API_KEY, free daily quota)
+#   instagram  -> Apify Instagram Scraper (APIFY_TOKEN)
+#   tiktok     -> Apify TikTok Scraper    (APIFY_TOKEN)
+# 平台在 Criteria 页的 platforms 列按行选择，例如 x,youtube,instagram,tiktok
 
 search:
-  queries_per_criteria: 12     # how many search queries Claude writes per criteria row
-  pages_per_query: 3           # 20 tweets per page
-  daily_tweet_budget: 20000    # hard stop on tweets fetched per run (cost control)
+  queries_per_criteria: 12     # search queries Claude writes per criteria row and platform
+  pages_per_query: 3           # ~20 results per page (50 on YouTube)
+  # Hard stop on results fetched per run, per platform (cost control). 每次运行每个平台最多抓取的结果数。
+  daily_result_budget:
+    x: 20000
+    youtube: 5000
+    instagram: 3000
+    tiktok: 3000
 
 sheet_tabs:
   criteria: Criteria

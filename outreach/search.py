@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from . import prefilter
 from .models import Creator, Criteria
-from .sources import XSource
+from .sources import Source
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class SearchResult:
 
 
 def run_search(
-    source: XSource,
+    source: Source,
     criteria: Criteria,
     queries: list[str],
     known: set[str],
@@ -43,6 +43,15 @@ def run_search(
                     break
         except Exception as e:  # one bad query should not kill the run
             log.error("query failed (%s): %s", q, e)
-    kept = [c for c in found.values() if prefilter.passes(c, criteria, known)]
+    pool = [c for c in found.values() if c.key not in known]
+    # Some platforms (Instagram) return posts without follower counts: enrich the
+    # most promising creators only, to keep scraping costs down.
+    if pool and not any(c.followers for c in pool):
+        pool = prefilter.rank(pool)[: criteria.max_candidates * 2]
+        try:
+            source.enrich(pool)
+        except Exception as e:
+            log.error("enrich failed: %s", e)
+    kept = [c for c in pool if prefilter.passes(c, criteria, known)]
     kept = prefilter.rank(kept)[: criteria.max_candidates]
     return SearchResult(criteria, queries, fetched, len(found), kept)

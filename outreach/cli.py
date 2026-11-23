@@ -36,7 +36,8 @@ def cmd_search(cfg, args) -> int:
     if args.keywords:  # quick test without a sheet: implies --dry-run
         args.dry_run = True
         criteria_list = [Criteria(name="cli", keywords=args.keywords, language=args.lang or "",
-                                  min_followers=args.min_followers, max_candidates=50)]
+                                  min_followers=args.min_followers, max_candidates=50,
+                                  platforms=[p.strip() for p in args.platforms.split(",")])]
     else:
         sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs)
         criteria_list = sheet.read_criteria()
@@ -47,36 +48,45 @@ def cmd_search(cfg, args) -> int:
         return 1
 
     client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
-    source = get_source(cfg.data_source, cfg.twitterapi_io_key)
-    known = sheet.known_usernames() if sheet else set()
-    budget = int(cfg.search.get("daily_tweet_budget", 20000))
+    known = sheet.known_creators() if sheet else set()
+    budgets = {p: int(v) for p, v in (cfg.search.get("daily_result_budget") or {}).items()}
+    sources = {}
 
-    for crit in criteria_list:
+    for crit, platform in [(c, p) for c in criteria_list for p in c.platforms]:
+        if budgets.get(platform, 1) <= 0:
+            print(f"[{crit.name}/{platform}] daily budget used up, skipping")
+            continue
+        try:
+            source = sources.get(platform) or get_source(platform, cfg)
+        except ValueError as e:
+            print(f"[{crit.name}/{platform}] skipped: {e}")
+            continue
+        sources[platform] = source
+        if hasattr(source, "language"):
+            source.language = crit.language
         queries = expand_queries(
             client, cfg.models.get("query_expansion", "claude-opus-5-5"), crit,
-            int(cfg.search.get("queries_per_criteria", 12)),
+            int(cfg.search.get("queries_per_criteria", 12)), platform=platform,
         )
         result = run_search(
             source, crit, queries, known,
             pages_per_query=int(cfg.search.get("pages_per_query", 3)),
-            tweet_budget=budget,
+            tweet_budget=budgets.get(platform, 10**9),
         )
-        budget -= result.tweets_fetched
-        print(f"[{crit.name}] queries={len(queries)} tweets={result.tweets_fetched} "
+        if platform in budgets:
+            budgets[platform] -= result.tweets_fetched
+        print(f"[{crit.name}/{platform}] queries={len(queries)} results={result.tweets_fetched} "
               f"creators={result.creators_seen} kept={len(result.candidates)}")
         if args.dry_run:
             w = csv.writer(sys.stdout)
-            w.writerow(["username", "followers", "avg_likes", "matched_queries", "bio"])
+            w.writerow(["platform", "username", "followers", "avg_likes", "matched_queries", "bio"])
             for c in result.candidates:
-                w.writerow([c.username, c.followers, round(c.avg_likes, 1),
+                w.writerow([c.platform, c.username, c.followers, round(c.avg_likes, 1),
                             len(c.matched_queries), c.bio.replace("\n", " ")[:120]])
         else:
             n = sheet.append_candidates(crit, result.candidates)
             print(f"  wrote {n} rows to {sheet.tabs['candidates']}")
-        known |= {c.username.lower() for c in result.candidates}
-        if budget <= 0:
-            print("Daily tweet budget used up.")
-            break
+        known |= {c.key for c in result.candidates}
     return 0
 
 
@@ -91,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--criteria", help="only run the criteria row with this name")
     s.add_argument("--keywords", help="skip the sheet and search these keywords (dry run)")
     s.add_argument("--lang", help="language code for --keywords, e.g. en")
+    s.add_argument("--platforms", default="x", help="for --keywords: comma list of x,youtube,instagram,tiktok")
     s.add_argument("--min-followers", type=int, default=1000, help="for --keywords")
     args = p.parse_args(argv)
 

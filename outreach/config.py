@@ -13,13 +13,14 @@ from dotenv import load_dotenv
 @dataclass
 class Config:
     models: dict = field(default_factory=dict)
-    data_source: str = "twitterapi_io"
     search: dict = field(default_factory=dict)
     sheet_tabs: dict = field(default_factory=dict)
 
     # secrets (from env)
     anthropic_api_key: str | None = None
     twitterapi_io_key: str | None = None
+    youtube_api_key: str | None = None
+    apify_token: str | None = None
     google_service_account: dict | None = None
     sheet_id: str | None = None
 
@@ -44,11 +45,12 @@ def load_config(path: str | os.PathLike = "config.yaml") -> Config:
     raw = yaml.safe_load(p.read_text()) or {}
     return Config(
         models=raw.get("models", {}),
-        data_source=raw.get("data_source", "twitterapi_io"),
         search=raw.get("search", {}),
         sheet_tabs=raw.get("sheet_tabs", {}),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
         twitterapi_io_key=os.getenv("TWITTERAPI_IO_KEY"),
+        youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
+        apify_token=os.getenv("APIFY_TOKEN"),
         google_service_account=_load_service_account(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")),
         sheet_id=os.getenv("SHEET_ID"),
     )

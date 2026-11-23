@@ -1,12 +1,12 @@
 """Cheap, rule-based filtering before any LLM scoring."""
 from __future__ import annotations
 
-from .models import Creator, Criteria, Tweet
+from .models import Creator, Criteria, Post
 
 
-def merge(found: dict[str, Creator], creator: Creator, tweet: Tweet, query: str) -> None:
-    """Group search hits by author (case-insensitive)."""
-    key = creator.username.lower()
+def merge(found: dict[str, Creator], creator: Creator, tweet: Post, query: str) -> None:
+    """Group search hits by platform + author (case-insensitive)."""
+    key = creator.key
     if key not in found:
         found[key] = creator
     c = found[key]
@@ -18,7 +18,7 @@ def merge(found: dict[str, Creator], creator: Creator, tweet: Tweet, query: str)
 
 
 def passes(c: Creator, criteria: Criteria, known: set[str]) -> bool:
-    if c.username.lower() in known:
+    if c.key in known:
         return False
     if c.followers < criteria.min_followers:
         return False

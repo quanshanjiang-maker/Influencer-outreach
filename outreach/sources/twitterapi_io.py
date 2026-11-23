@@ -6,8 +6,8 @@ from typing import Iterator
 
 import requests
 
-from ..models import Creator, Tweet
-from .base import XSource
+from ..models import Creator, Post as Tweet
+from .base import Source
 
 BASE = "https://api.twitterapi.io"
 
@@ -34,6 +34,7 @@ def _creator(a: dict) -> Creator:
     username = a.get("userName", "") or ""
     return Creator(
         username=username,
+        platform="x",
         name=a.get("name", "") or "",
         profile_url=a.get("url") or f"https://x.com/{username}",
         followers=int(a.get("followers") or 0),
@@ -43,7 +44,9 @@ def _creator(a: dict) -> Creator:
     )
 
 
-class TwitterApiIoSource(XSource):
+class TwitterApiIoSource(Source):
+    platform = "x"
+
     def __init__(self, api_key: str | None, timeout: int = 20):
         if not api_key:
             raise ValueError("TWITTERAPI_IO_KEY is not set")
@@ -78,7 +81,7 @@ class TwitterApiIoSource(XSource):
                 break
             cursor = data["next_cursor"]
 
-    def recent_tweets(self, username: str, limit: int = 20) -> list[Tweet]:
+    def recent_posts(self, username: str, limit: int = 20) -> list[Tweet]:
         data = self._get("/twitter/user/last_tweets", {"userName": username})
         # The response nests tweets under "data" on some API versions.
         tweets = data.get("tweets") or (data.get("data") or {}).get("tweets") or []

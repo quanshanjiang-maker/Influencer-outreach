@@ -5,15 +5,15 @@ from datetime import date
 
 import gspread
 
-from .models import Creator, Criteria
+from .models import PLATFORMS, Creator, Criteria
 
 CRITERIA_HEADERS = [
-    "enabled", "name", "keywords", "description", "language",
+    "enabled", "name", "platforms", "keywords", "description", "language",
     "min_followers", "max_followers", "min_avg_likes", "max_candidates",
 ]
 
 CANDIDATE_HEADERS = [
-    "date", "criteria", "username", "profile_url", "followers", "avg_likes",
+    "date", "criteria", "platform", "username", "profile_url", "followers", "avg_likes",
     "language", "bio", "website", "matched_query", "top_tweet_url",
     "score", "score_reason", "tags",
     "email", "email_source", "email_status", "opener",
@@ -21,14 +21,14 @@ CANDIDATE_HEADERS = [
 ]
 
 OUTREACH_HEADERS = [
-    "sent_at", "username", "email", "send_from", "subject", "thread_id",
+    "sent_at", "platform", "username", "email", "send_from", "subject", "thread_id",
     "followup_count", "last_event", "last_event_at",
 ]
 
 TEMPLATE_HEADERS = ["name", "subject", "body"]
 
 EXAMPLE_CRITERIA = [
-    "TRUE", "ai-video", "AI video tools",
+    "TRUE", "ai-video", "x,youtube", "AI video tools",
     "Creators who review or teach AI video generation tools", "en",
     "5000", "200000", "20", "200",
 ]
@@ -93,6 +93,10 @@ class Sheet:
         for r in ws.get_all_records():
             if not _truthy(r.get("enabled", "TRUE")) or not str(r.get("keywords", "")).strip():
                 continue
+            platforms = [p.strip().lower() for p in str(r.get("platforms") or "x").split(",") if p.strip()]
+            bad = [p for p in platforms if p not in PLATFORMS]
+            if bad:
+                raise ValueError(f"Unknown platform(s) {bad} in Criteria row {r.get('name')}; use {PLATFORMS}")
             out.append(Criteria(
                 name=str(r.get("name") or r.get("keywords")),
                 keywords=str(r["keywords"]),
@@ -102,14 +106,19 @@ class Sheet:
                 max_followers=_int(r.get("max_followers")),
                 min_avg_likes=float(_int(r.get("min_avg_likes"))),
                 max_candidates=_int(r.get("max_candidates"), 200) or 200,
+                platforms=platforms,
             ))
         return out
 
     # --- candidates ----------------------------------------------------
-    def known_usernames(self) -> set[str]:
+    def known_creators(self) -> set[str]:
+        """Keys like 'x:alice' for every creator already in Candidates."""
         ws = self.book.worksheet(self.tabs["candidates"])
-        col = CANDIDATE_HEADERS.index("username") + 1
-        return {u.strip().lower().lstrip("@") for u in ws.col_values(col)[1:] if u.strip()}
+        rows = ws.get_all_records()
+        return {
+            f"{str(r.get('platform') or 'x').lower()}:{str(r.get('username')).strip().lower().lstrip('@')}"
+            for r in rows if str(r.get("username", "")).strip()
+        }
 
     def append_candidates(self, criteria: Criteria, creators: list[Creator]) -> int:
         if not creators:
@@ -121,6 +130,7 @@ class Sheet:
             row = {
                 "date": today,
                 "criteria": criteria.name,
+                "platform": c.platform,
                 "username": c.username,
                 "profile_url": c.profile_url,
                 "followers": c.followers,

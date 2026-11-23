@@ -27,7 +27,7 @@ def test_prefilter_rules():
     prefilter.merge({}, ok, t, "q")
     ok.tweets.append(t)
     assert prefilter.passes(ok, crit, known=set())
-    assert not prefilter.passes(ok, crit, known={"good"})
+    assert not prefilter.passes(ok, crit, known={"x:good"})
     small, t2 = mk("small", 10, 50)
     small.tweets.append(t2)
     assert not prefilter.passes(small, crit, set())
@@ -37,7 +37,7 @@ def test_prefilter_rules():
     zh, t4 = mk("zh", 5000, 50, lang="zh")
     d = {}
     prefilter.merge(d, zh, t4, "q")
-    assert not prefilter.passes(d["zh"], crit, set())
+    assert not prefilter.passes(d["x:zh"], crit, set())
 
 
 def test_run_search_groups_ranks_and_budgets():
@@ -46,7 +46,7 @@ def test_run_search_groups_ranks_and_budgets():
         "q2": [mk("alice", 5000, 60, tid="3"), mk("carol", 8000, 30, tid="4")],
     }
     crit = Criteria(name="t", keywords="k", min_followers=1000, min_avg_likes=10)
-    res = run_search(FakeSource(hits), crit, ["q1", "q2"], known={"carol"},
+    res = run_search(FakeSource(hits), crit, ["q1", "q2"], known={"x:carol"},
                      pages_per_query=1, tweet_budget=100)
     assert res.tweets_fetched == 4
     assert [c.username for c in res.candidates] == ["Alice"]  # bob too few likes, carol known
