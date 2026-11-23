@@ -1,0 +1,48 @@
+# Copy to config.yaml and edit. 复制为 config.yaml 再修改。
+# Search criteria live in the "Criteria" sheet tab so you can change them daily
+# without touching code. 搜索标准写在表格的 Criteria 页，每天可改。
+
+models:
+  # Writes X search queries from your keywords. 把关键词扩展成 X 搜索语句。
+  query_expansion: claude-opus-5-5
+  # Bulk relevance scoring (step 4). 批量相关度打分（第 4 步）。
+  scoring: claude-haiku-5-5
+
+# Platforms are chosen per row in the Criteria tab (column "platforms"):
+#   x          -> TwitterAPI.io        (TWITTERAPI_IO_KEY)
+#   youtube    -> YouTube Data API v3  (YOUTUBE_API_KEY, free daily quota)
+#   instagram  -> Apify Instagram Scraper (APIFY_TOKEN)
+#   tiktok     -> Apify TikTok Scraper    (APIFY_TOKEN)
+# 平台在 Criteria 页的 platforms 列按行选择，例如 x,youtube,instagram,tiktok
+
+# Which provider serves each platform. 每个平台用哪个数据源。
+#   youtube:   youtube_api (free) | easykol
+#   instagram: apify | easykol
+#   tiktok:    apify | easykol
+# EasyKOL (EASYKOL_API_KEY + EASYKOL_API_EMAIL) does semantic search itself and
+# returns creators with emails; billed per batch of results on your EasyKOL plan.
+# EasyKOL 自带语义搜索并返回邮箱，按批次扣你 EasyKOL 套餐里的任务点数。
+providers:
+  x: twitterapi_io
+  youtube: youtube_api
+  instagram: apify
+  tiktok: apify
+  easykol_options:
+    batch_count: 1          # 1-10 batches per search; Instagram costs 2 points per batch
+    has_contact_info: true  # only creators EasyKOL has an email for
+
+search:
+  queries_per_criteria: 12     # search queries Claude writes per criteria row and platform
+  pages_per_query: 3           # ~20 results per page (50 on YouTube)
+  # Hard stop on results fetched per run, per platform (cost control). 每次运行每个平台最多抓取的结果数。
+  daily_result_budget:
+    x: 20000
+    youtube: 5000
+    instagram: 3000
+    tiktok: 3000
+
+sheet_tabs:
+  criteria: Criteria
+  candidates: Candidates
+  outreach: Outreach
+  templates: Templates
