@@ -19,6 +19,7 @@ CANDIDATE_HEADERS = [
     "score", "score_reason", "tags",
     "email", "email_source", "email_status", "opener",
     "send_from", "status", "thread_id", "reply_category", "reply_summary", "notes",
+    "sent_at", "followup_count", "message_id",
 ]
 
 OUTREACH_HEADERS = [
@@ -43,6 +44,13 @@ EXAMPLE_TEMPLATE = [
     "(Reply 'unsubscribe' and I won't email again.)",
 ]
 
+EXAMPLE_FOLLOWUP = [
+    "followup",
+    "Re: Collab idea for {name}",
+    "Hi {name},\n\nJust bumping this in case it got buried. Happy to share details or send a sample.\n\n"
+    "Best,\n<your name>\n\n(Reply 'unsubscribe' and I won't email again.)",
+]
+
 
 def _truthy(v) -> bool:
     return str(v).strip().lower() in {"true", "yes", "1", "y", "是"}
@@ -62,6 +70,7 @@ class Sheet:
         self.gc = gspread.service_account_from_dict(service_account)
         self.book = self.gc.open_by_key(sheet_id)
         self._pitch: dict[str, str] = {}
+        self._cols: dict[str, list[str]] = {}
         self.tabs = {
             "criteria": tabs.get("criteria", "Criteria"),
             "candidates": tabs.get("candidates", "Candidates"),
@@ -77,7 +86,7 @@ class Sheet:
             ("criteria", CRITERIA_HEADERS, [EXAMPLE_CRITERIA]),
             ("candidates", CANDIDATE_HEADERS, []),
             ("outreach", OUTREACH_HEADERS, []),
-            ("templates", TEMPLATE_HEADERS, [EXAMPLE_TEMPLATE]),
+            ("templates", TEMPLATE_HEADERS, [EXAMPLE_TEMPLATE, EXAMPLE_FOLLOWUP]),
         ]
         created = []
         for key, headers, rows in plan:
@@ -151,9 +160,10 @@ class Sheet:
                 "score_reason": c.match_reason,
                 "status": "new",
             }
-            rows.append([row.get(h, "") for h in CANDIDATE_HEADERS])
+            rows.append(row)
         ws = self.book.worksheet(self.tabs["candidates"])
-        ws.append_rows(rows, value_input_option="RAW")
+        cols = self._columns("candidates", CANDIDATE_HEADERS)
+        ws.append_rows([[r.get(h, "") for h in cols] for r in rows], value_input_option="RAW")
         return len(rows)
 
     def pitch_for(self, criteria_name: str) -> str:
@@ -165,12 +175,52 @@ class Sheet:
         return [(i + 2, r) for i, r in enumerate(ws.get_all_records())]
 
     def update_candidates(self, updates: list[tuple[int, dict]]) -> int:
-        """Write {column: value} changes for many rows in one request."""
+        """Write {column: value} changes for many rows in one request.
+        Columns are found by header name, so users may reorder or add columns."""
+        cols = self._columns("candidates", CANDIDATE_HEADERS)
         data = []
         for row, changes in updates:
             for col, value in changes.items():
-                data.append({"range": rowcol_to_a1(row, CANDIDATE_HEADERS.index(col) + 1),
-                             "values": [[value]]})
+                data.append({"range": rowcol_to_a1(row, cols.index(col) + 1), "values": [[value]]})
         if data:
             self.book.worksheet(self.tabs["candidates"]).batch_update(data, value_input_option="RAW")
         return len(updates)
+
+    # --- columns -------------------------------------------------------
+    def _columns(self, key: str, required: list[str]) -> list[str]:
+        """Header row of a tab; appends any required header that is missing
+        (so sheets created by older versions keep working)."""
+        if key in self._cols:
+            return self._cols[key]
+        ws = self.book.worksheet(self.tabs[key])
+        header = [h.strip() for h in ws.row_values(1)]
+        missing = [h for h in required if h not in header]
+        if missing:
+            start = len(header) + 1
+            if ws.col_count < start + len(missing) - 1:
+                ws.add_cols(start + len(missing) - 1 - ws.col_count)
+            ws.update(range_name=rowcol_to_a1(1, start), values=[missing], value_input_option="RAW")
+            header += missing
+        self._cols[key] = header
+        return header
+
+    # --- outreach log & templates -------------------------------------
+    def read_outreach(self) -> list[dict]:
+        return self.book.worksheet(self.tabs["outreach"]).get_all_records()
+
+    def append_outreach(self, records: list[dict]) -> int:
+        if not records:
+            return 0
+        cols = self._columns("outreach", OUTREACH_HEADERS)
+        self.book.worksheet(self.tabs["outreach"]).append_rows(
+            [[r.get(h, "") for h in cols] for r in records], value_input_option="RAW")
+        return len(records)
+
+    def read_templates(self) -> dict[str, tuple[str, str]]:
+        """{name: (subject, body)} from the Templates tab."""
+        out = {}
+        for r in self.book.worksheet(self.tabs["templates"]).get_all_records():
+            name = str(r.get("name", "")).strip()
+            if name:
+                out[name] = (str(r.get("subject", "")), str(r.get("body", "")))
+        return out

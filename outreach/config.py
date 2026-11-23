@@ -16,6 +16,8 @@ class Config:
     search: dict = field(default_factory=dict)
     scoring: dict = field(default_factory=dict)
     sheet_tabs: dict = field(default_factory=dict)
+    mailboxes: list = field(default_factory=list)
+    sending: dict = field(default_factory=dict)
 
     # secrets (from env)
     anthropic_api_key: str | None = None
@@ -54,6 +56,8 @@ def load_config(path: str | os.PathLike = "config.yaml") -> Config:
         search=raw.get("search", {}),
         scoring=raw.get("scoring", {}),
         sheet_tabs=raw.get("sheet_tabs", {}),
+        mailboxes=raw.get("mailboxes") or [],
+        sending=raw.get("sending", {}),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
         twitterapi_io_key=os.getenv("TWITTERAPI_IO_KEY"),
         youtube_api_key=os.getenv("YOUTUBE_API_KEY"),

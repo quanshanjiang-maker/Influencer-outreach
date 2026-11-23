@@ -52,3 +52,35 @@ sheet_tabs:
   candidates: Candidates
   outreach: Outreach
   templates: Templates
+
+# Sending mailboxes. Emails rotate across them (round-robin) within each daily_limit.
+# Secrets are NOT written here: each *_env names an environment variable / GitHub Secret.
+# 发信邮箱（轮流发送 round-robin）。密钥不写在这里，*_env 填环境变量名。
+mailboxes:
+  - name: personal
+    type: gmail                     # Gmail API (personal Gmail or Google Workspace)
+    address: you@gmail.com
+    from_name: Your Name
+    daily_limit: 30                 # keep new mailboxes low and warm up slowly 新邮箱先少发（预热 warm-up）
+    client_id_env: GMAIL_CLIENT_ID
+    client_secret_env: GMAIL_CLIENT_SECRET
+    refresh_token_env: GMAIL1_REFRESH_TOKEN
+  # Company mailbox on any provider (Microsoft 365, Tencent Exmail, Zoho ...): SMTP + IMAP.
+  # 企业邮箱，任何服务商都可以用 SMTP + IMAP 连接。
+  # - name: company
+  #   type: smtp
+  #   address: you@yourcompany.com
+  #   from_name: Your Name
+  #   daily_limit: 40
+  #   smtp_host: smtp.office365.com
+  #   smtp_port: 587                # 465 = SSL, anything else = STARTTLS
+  #   imap_host: outlook.office365.com
+  #   imap_port: 993
+  #   password_env: COMPANY_MAIL_PASSWORD   # app password 应用专用密码
+
+sending:
+  max_per_run: 50
+  min_delay_seconds: 60       # random pause between emails 每封之间随机等待
+  max_delay_seconds: 180
+  followup_after_days: 4      # mark followup_due if no reply after N days
+  max_followups: 1
