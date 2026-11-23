@@ -1,6 +1,8 @@
 """Turn plain-language keywords into X advanced-search queries with Claude."""
 from __future__ import annotations
 
+from datetime import date
+
 import anthropic
 from pydantic import BaseModel
 
@@ -39,7 +41,8 @@ def expand_queries(client: anthropic.Anthropic, model: str, criteria: Criteria, 
         f"Topic keywords: {criteria.keywords}\n"
         f"What kind of creators we want: {criteria.description or '(not given)'}\n"
         f"Language: {criteria.language or 'any'}\n"
-        f"Number of queries: {n}"
+        f"Number of queries: {n}\n"
+        f"Today's date: {date.today().isoformat()} (if a query names a year, use this one)"
     )
     resp = client.messages.parse(
         model=model,
