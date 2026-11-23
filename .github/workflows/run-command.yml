@@ -17,12 +17,14 @@ on:
           - score
           - emails --dry-run
           - emails
+          - approve --dry-run
+          - approve
           - test-email
           - send --dry-run
           - replies --dry-run
           - slack digest --dry-run
       extra:
-        description: "Extra flags, e.g. --criteria ai-video --limit 20 (optional)"
+        description: "Extra flags, e.g. --limit 20, or for approve: --min-score 8 --skip youtube:foo (optional)"
         required: false
         default: ""
 
