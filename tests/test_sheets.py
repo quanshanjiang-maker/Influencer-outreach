@@ -47,11 +47,32 @@ def test_setup_review_adds_dropdown_colors_and_views_once():
     kinds = [next(iter(r)) for r in sent[0]["requests"]]
     assert kinds.count("setDataValidation") == 1 and kinds.count("addFilterView") == 2
     assert kinds.count("addConditionalFormatRule") == 3 and len(added) == 2
+    assert kinds.count("updateDimensionProperties") == 14  # tool-only columns hidden
+    leader = next(r["addFilterView"]["filter"] for r in sent[0]["requests"]
+                  if "addFilterView" in r and r["addFilterView"]["filter"]["title"].startswith("Leader"))
+    formula = leader["filterSpecs"][0]["filterCriteria"]["condition"]["values"][0]["userEnteredValue"]
+    assert formula.count("LEN(") == 3 and "通过" in formula and "不要" in formula
 
     c = CANDIDATE_HEADERS.index("leader_review")
     meta = {"sheets": [{"properties": {"sheetId": 7},
-                        "filterViews": [{"title": "Leader 审批（待审）"}, {"title": "推进中（通过）"}],
+                        "filterViews": [{"title": "Leader 审批（待审）", "filterViewId": 1},
+                                        {"title": "推进中（通过）", "filterViewId": 2}],
                         "conditionalFormats": [{"ranges": [{"startColumnIndex": c}]}]}]}
     sheet, sent = _review_sheet(meta)
     assert sheet.setup_review() == []
-    assert [next(iter(r)) for r in sent[0]["requests"]] == ["setDataValidation"]
+    kinds = [next(iter(r)) for r in sent[0]["requests"]]
+    assert kinds.count("updateFilterView") == 2 and "addFilterView" not in kinds
+
+
+def test_old_quote_column_is_renamed():
+    ws = FakeWS(["date", "quote", "leader_review"])
+    ws.id = 7
+    book = type("B", (), {"worksheet": lambda self, t: ws, "fetch_sheet_metadata": lambda self, params=None: {},
+                          "batch_update": lambda self, body: None})()
+    sheet = Sheet.__new__(Sheet)
+    sheet._cols, sheet.tabs, sheet.book = {}, {"candidates": "Candidates"}, book
+    renamed = []
+    ws.update = lambda range_name, values, value_input_option: (
+        renamed.append((range_name, values)) if range_name == "B1" else ws.header.extend(values[0]))
+    sheet.setup_review()
+    assert renamed == [("B1", [["price_post"]])]

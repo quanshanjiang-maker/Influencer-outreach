@@ -23,7 +23,7 @@
 | 工作表 (tab) | 内容 |
 | --- | --- |
 | Criteria | 你的话题、平台、国家、粉丝范围、一句话合作介绍 (pitch) |
-| Candidates | 每个博主一行：平台、主页链接、粉丝数、平均点赞、简介 (bio)、匹配分和理由、邮箱及来源、开场白、状态（ready 待批准 / approved 已批准 / sent 已发 / replied 已回复 / bounced 退信……）。另有 quote（报价）、leader_review（Leader 审批，下拉框：待审 / 通过 / 不要）和 leader_note（Leader 备注）三列。表里存了两个筛选视图 (filter view)：「Leader 审批（待审）」只显示等审批的人，「推进中（通过）」只显示通过的人。 |
+| Candidates | 每个博主一行：平台、主页链接、粉丝数、平均点赞、简介 (bio)、匹配分和理由、邮箱及来源、开场白、状态（ready 待批准 / approved 已批准 / sent 已发 / replied 已回复 / bounced 退信……）。另有 X 的三种报价 price_post（普通帖子 post）、price_thread（长推 thread）、price_quote（引用转发 quote），以及 leader_review（Leader 审批，下拉框：待审 / 通过 / 不要）和 leader_note（Leader 备注）。表里存了两个筛选视图 (filter view)：「Leader 审批（待审）」显示填了任一报价、Leader 还没决定的人；「推进中（通过）」只显示通过的人。只有工具自己用的列默认隐藏。 |
 | Outreach | 每封发出的邮件和每条回复的记录 (log) |
 | Templates | 邮件标题和正文模板，`{name}`、`{opener}` 会按博主自动填入 |
 

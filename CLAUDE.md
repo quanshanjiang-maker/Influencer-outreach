@@ -24,8 +24,9 @@ beyond a dry run.
 - `python -m outreach slack digest [--dry-run]` posts the shortlist to Slack; `slack poll` answers new thread replies; `slack listen` is real-time Socket Mode.
 - `python -m outreach gmail-auth --client-secret file.json` one-time Gmail authorization (prints a refresh token; never commit it).
 
-Leader review: Candidates has `quote`, `leader_review` (待审 / 通过 / 不要 dropdown) and `leader_note`.
-`setup-sheet` adds the dropdown and two filter views; `replies` sets 待审 when a creator sends pricing.
+Leader review: Candidates has X rates `price_post`, `price_thread`, `price_quote`, plus `leader_review`
+(待审 / 通过 / 不要 dropdown) and `leader_note`. A row with any price and no decision shows in the leader view.
+`setup-sheet` adds the dropdown, the two filter views and hides tool-only columns; `replies` fills empty price cells.
 Never overwrite a leader's choice in these columns.
 
 Approval flow from chat: when the user says something like "send everyone 8+, skip @foo", run `approve --dry-run`
