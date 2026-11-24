@@ -422,33 +422,62 @@ def cmd_find(cfg, args) -> int:
 
 
 def cmd_profiles(cfg, args) -> int:
-    """Print public X profile stats for handles (or search by display name if no exact handle)."""
+    """Print public X profile stats for handles: followers, location, views, quote/promo posts,
+    brands they tagged in promo posts, and (with --score) the scorer's verdict under a criteria row."""
+    import re
     from statistics import median
 
     from .sources import get_source
+    from .sources.twitterapi_io import _tweet
 
+    promo_re = re.compile(r"#ad\b|#sponsored|\bsponsored\b|partner(ed)? with|affiliate|use (my )?code|"
+                          r"promo code|discount|thanks to @\w+ for|in collaboration with|#collab", re.I)
     src = get_source("x", cfg)
+    crit = None
+    if args.score:
+        import anthropic
+
+        from .score import ScoreInput, assess, post_line
+        crit = next((c for c in _sheet(cfg).read_criteria() if c.name == args.score), None)
+        client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
     for want in [w.strip().lstrip("@") for w in args.names.split(",") if w.strip()]:
         try:
-            found = [src.user_info(want)]
-        except Exception:
-            found = [None]
-        if found[0] is None:
-            try:
-                found = src.user_search(want.replace("_", " "))[:3]
-            except Exception as e:
-                print(f"{want}: lookup failed ({e})")
-                continue
-            print(f"{want}: no exact handle; top matches by name:")
-        for c in [c for c in found if c]:
-            posts = src.recent_posts(c.username, 20)
-            views = [p.views for p in posts] or [0]
-            likes = [p.likes for p in posts] or [0]
-            print(f"  @{c.username} | {c.name} | followers {c.followers} | location {c.location or '-'} | "
-                  f"joined {c.account_created or '-'} | DM {c.dm_open or '-'} | posts {len(posts)} | "
-                  f"median views {int(median(views))} | avg views {int(sum(views) / len(views))} | "
-                  f"median likes {int(median(likes))} | last post {posts[0].created_at if posts else '-'}")
-            print(f"    bio: {c.bio[:160]!r}")
+            c = src.user_info(want)
+        except Exception as e:
+            c = None
+            print(f"{want}: lookup failed ({e})")
+        if c is None:
+            print(f"{want}: no such X handle")
+            continue
+        data = src._get("/twitter/user/last_tweets", {"userName": c.username})
+        raw = [t for t in (data.get("tweets") or (data.get("data") or {}).get("tweets") or [])
+               if not t.get("retweeted_tweet")][:40]
+        posts = [_tweet(t) for t in raw]
+        views = [p.views for p in posts] or [0]
+        quotes = [t for t in raw if t.get("quoted_tweet")]
+        promos = [t for t in raw if t.get("quoted_tweet") or promo_re.search(t.get("text") or "")]
+        brands = sorted({m.lower() for t in promos for m in re.findall(r"@(\w+)", t.get("text") or "")}
+                        | {str((t.get("quoted_tweet") or {}).get("author", {}).get("userName", "")).lower()
+                           for t in quotes} - {"", c.username.lower()})
+        last_q = quotes[0] if quotes else None
+        print(f"@{c.username} | {c.name} | followers {c.followers} | location {c.location or '-'} | "
+              f"joined {c.account_created[:10] or '-'} | DM {c.dm_open or '-'} | posts {len(posts)} | "
+              f"median views {int(median(views))} | avg views {int(sum(views) / len(views))} | "
+              f"last post {posts[0].created_at if posts else '-'}")
+        pv = [int(t.get("viewCount") or 0) for t in promos]
+        print(f"    promo/quote posts {len(promos)} (quotes {len(quotes)}) | median promo views "
+              f"{int(median(pv)) if pv else '-'} | last quote views "
+              f"{int(last_q.get('viewCount') or 0) if last_q else '-'} "
+              f"({last_q.get('createdAt', '') if last_q else ''}) | tagged/quoted {', '.join(brands[:12]) or '-'}")
+        print(f"    website {c.website or '-'} | bio: {c.bio[:200]!r}")
+        if crit:
+            a = assess(client, cfg.models.get("scoring", "claude-haiku-5-5"), ScoreInput(
+                row=0, platform="x", username=c.username, followers=c.followers, bio=c.bio,
+                posts=[post_line(p) for p in posts[:20]], brief=f"{crit.keywords}. {crit.description}",
+                pitch="", rules=crit.rules,
+                profile={"location": c.location, "account_created": c.account_created, "dm_open": c.dm_open}))
+            if a:
+                print(f"    score {a.score} | icp_fit {a.icp_fit} | {a.reason}")
     return 0
 
 
@@ -592,7 +621,8 @@ def main(argv: list[str] | None = None) -> int:
     fi = sub.add_parser("find-candidates", help="look up creators in Candidates by handle")
     fi.add_argument("--names", required=True, help="comma list of handles or parts of handles")
     pr = sub.add_parser("x-profiles", help="print public X profile stats for handles")
-    pr.add_argument("--names", required=True, help="comma list of handles (or names to search)")
+    pr.add_argument("--names", required=True, help="comma list of X handles")
+    pr.add_argument("--score", help="also score them under this Criteria row name")
     sf = sub.add_parser("set-fields", help="fill Candidates cells from a sealed payload")
     sf.add_argument("--sealed", required=True)
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
