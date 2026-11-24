@@ -23,7 +23,7 @@ You do two things; the rest runs on its own.
 | tab | what is in it |
 | --- | --- |
 | Criteria | your topics, platforms, countries, follower range, a one-line pitch |
-| Candidates | one row per creator: platform, profile link, followers, average likes, bio, fit score and reason, email and where it came from, drafted opener, status (ready / approved / sent / replied / bounced...) |
+| Candidates | one row per creator: platform, profile link, followers, average likes, bio, fit score and reason, email and where it came from, drafted opener, status (ready / approved / sent / replied / bounced...), plus quote, leader_review (待审 / 通过 / 不要 dropdown) and leader_note for your leader's review. Two saved filter views, "Leader 审批（待审）" and "推进中（通过）", show only the rows waiting for review and the approved ones. |
 | Outreach | log of every email sent and every reply |
 | Templates | your email subject and body, with `{name}` and `{opener}` filled in per creator |
 
