@@ -4,7 +4,14 @@
 
 **An automated assistant for influencer marketing.** Every day it finds creators on X (Twitter), YouTube, Instagram and TikTok who talk about your topics, scores how well each one fits your brand, finds their business email, drafts a personalized first line, and after you approve, sends the emails and tracks who replied. Everything lands in one Google Sheet.
 
-> Status: early development. All features are written and unit-tested, but not yet tested with live accounts.
+## Results so far
+
+First live run, on one topic (AI video tools), YouTube only:
+
+- **Search:** 12 search queries returned 1,800 results from 952 channels, and 182 creators passed the filters.
+- **Scoring:** 20 creators were scored, and 19 scored 7 or higher, each with a written reason and a drafted opener.
+- **Emails:** of those 19, 10 had a business email ready to contact. The other 9 are marked for a DM instead.
+- **Sending:** Gmail sending is connected and tested.
 
 ## Who it is for
 
