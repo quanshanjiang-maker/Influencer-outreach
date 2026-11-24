@@ -13,7 +13,7 @@ class FakeMessages:
         if user == "bad":
             raise RuntimeError("boom")
         return SimpleNamespace(stop_reason="end_turn", parsed_output=score.Assessment(
-            score=9, tags=["ai video"], reason="Reviews AI video tools weekly", opener="Loved your Sora vs Veo test."))
+            score=9, tags=["ai video"], reason="Reviews AI video tools weekly", icp_fit="High", opener="Loved your Sora vs Veo test."))
 
 
 def test_assess_many_handles_failures_and_marks_untrusted():

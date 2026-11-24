@@ -41,6 +41,8 @@ def _creator(a: dict) -> Creator:
         bio=a.get("description", "") or "",
         location=a.get("location", "") or "",
         website=website,
+        account_created=str(a.get("createdAt", "") or ""),
+        dm_open={True: "yes", False: "no"}.get(a.get("canDm"), ""),
     )
 
 

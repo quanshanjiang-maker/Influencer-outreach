@@ -63,7 +63,7 @@ mailboxes:
     type: gmail                     # Gmail API (personal Gmail or Google Workspace)
     address_env: GMAIL_ADDRESS      # read from a secret so the address isn't in this public file
     from_name_env: SENDER_NAME      # 发件人地址和名字从 Secrets 读取（也可以直接写 address: / from_name:）
-    daily_limit: 30                 # keep new mailboxes low and warm up slowly 新邮箱先少发（预热 warm-up）
+    daily_limit: 15                 # warm-up: 10-20/day for 2 weeks, then raise to 30-50 新邮箱先少发（预热 warm-up）
     client_id_env: GOOGLE_CLIENT_ID
     client_secret_env: GOOGLE_CLIENT_SECRET
     refresh_token_env: GOOGLE_REFRESH_TOKEN
