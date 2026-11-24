@@ -20,7 +20,18 @@ CANDIDATE_HEADERS = [
     "email", "email_source", "email_status", "opener",
     "send_from", "status", "thread_id", "reply_category", "reply_summary", "notes",
     "sent_at", "followup_count", "message_id",
+    "quote", "leader_review", "leader_note",
 ]
+
+# Leader review: one Candidates table, a dropdown column and two saved filter views.
+# The tool never overwrites these columns except to mark a new price reply as pending review.
+REVIEW_COLUMN = "leader_review"
+REVIEW_PENDING, REVIEW_YES, REVIEW_NO = "待审", "通过", "不要"
+REVIEW_OPTIONS = [REVIEW_PENDING, REVIEW_YES, REVIEW_NO]
+REVIEW_VIEWS = {  # filter view title -> leader_review value it shows
+    "Leader 审批（待审）": REVIEW_PENDING,
+    "推进中（通过）": REVIEW_YES,
+}
 
 OUTREACH_HEADERS = [
     "sent_at", "platform", "username", "email", "send_from", "subject", "thread_id",
@@ -106,7 +117,44 @@ class Sheet:
             ws.append_rows([headers, *rows], value_input_option="RAW")
             ws.freeze(rows=1)
             created.append(title)
+        created += self.setup_review()
         return created
+
+    def setup_review(self) -> list[str]:
+        """Add the leader review dropdown, colors and filter views to Candidates (idempotent)."""
+        cols = self._columns("candidates", CANDIDATE_HEADERS)
+        ws = self.book.worksheet(self.tabs["candidates"])
+        sid, c = ws.id, cols.index(REVIEW_COLUMN)
+        meta = self.book.fetch_sheet_metadata(params={"fields": "sheets(properties.sheetId,filterViews,conditionalFormats)"})
+        mine = next((x for x in meta.get("sheets", []) if x["properties"]["sheetId"] == sid), {})
+        have_views = {v.get("title") for v in mine.get("filterViews", [])}
+        column = {"sheetId": sid, "startRowIndex": 1, "startColumnIndex": c, "endColumnIndex": c + 1}
+        requests: list[dict] = [{"setDataValidation": {"range": column, "rule": {
+            "condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": v} for v in REVIEW_OPTIONS]},
+            "showCustomUi": True, "strict": True}}}]
+        if not any(any(r.get("startColumnIndex") == c for r in f.get("ranges", []))
+                   for f in mine.get("conditionalFormats", [])):
+            for value, rgb in ((REVIEW_YES, (0.85, 0.94, 0.83)), (REVIEW_NO, (0.9, 0.9, 0.9)),
+                               (REVIEW_PENDING, (1.0, 0.95, 0.8))):
+                requests.append({"addConditionalFormatRule": {"index": 0, "rule": {
+                    "ranges": [column],
+                    "booleanRule": {"condition": {"type": "TEXT_EQ", "values": [{"userEnteredValue": value}]},
+                                    "format": {"backgroundColor": dict(zip(("red", "green", "blue"), rgb))}}}}})
+        added = []
+        score = cols.index("score") if "score" in cols else None
+        for title, value in REVIEW_VIEWS.items():
+            if title in have_views:
+                continue
+            view = {"title": title, "range": {"sheetId": sid, "startRowIndex": 0, "startColumnIndex": 0,
+                                              "endColumnIndex": len(cols)},
+                    "filterSpecs": [{"columnIndex": c, "filterCriteria": {"condition": {
+                        "type": "TEXT_EQ", "values": [{"userEnteredValue": value}]}}}]}
+            if score is not None:
+                view["sortSpecs"] = [{"dimensionIndex": score, "sortOrder": "DESCENDING"}]
+            requests.append({"addFilterView": {"filter": view}})
+            added.append(f"filter view '{title}'")
+        self.book.batch_update({"requests": requests})
+        return added
 
     # --- criteria ------------------------------------------------------
     def read_criteria(self) -> list[Criteria]:

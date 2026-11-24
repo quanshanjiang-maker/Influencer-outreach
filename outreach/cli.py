@@ -25,7 +25,7 @@ def cmd_setup_sheet(cfg, args) -> int:
     from .sheets import Sheet
     sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
     created = sheet.setup()
-    print("Created tabs: " + (", ".join(created) if created else "none (all tabs already exist)"))
+    print("Created: " + (", ".join(created) if created else "nothing new (tabs and review views already exist)"))
     return 0
 
 
@@ -303,6 +303,9 @@ def cmd_replies(cfg, args) -> int:
             else:
                 status = "unsubscribed" if c.category == "unsubscribe" else "replied"
                 change = {"status": status, "reply_category": c.category, "reply_summary": c.summary}
+                if c.category == "pricing" and not str(r.get("leader_review", "")).strip():
+                    from .sheets import REVIEW_PENDING
+                    change["leader_review"] = REVIEW_PENDING  # shows up in the leader's review view
         elif followup_due(r, after, max_fu, now):
             change = {"status": "followup_due"}
         if change is None:
