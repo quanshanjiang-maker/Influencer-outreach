@@ -99,7 +99,9 @@ def cmd_search(cfg, args) -> int:
             for c in result.candidates:
                 c.competitor = ", ".join(sorted({labels[q] for q in c.matched_queries if labels.get(q)}))
                 top = c.top_tweet
-                c.competitor_post, c.competitor_post_text = (top.url, top.text) if top else ("", "")
+                if top:
+                    c.competitor_post, c.competitor_post_text = top.url, top.text
+                    c.competitor_post_date = top.created_at
         if platform in budgets:
             budgets[platform] -= result.tweets_fetched
         print(f"[{crit.name}/{platform}] queries={len(queries)} results={result.tweets_fetched} "
@@ -142,6 +144,7 @@ def cmd_score(cfg, args) -> int:
 
     sources = {}
     inputs = []
+    stats: dict[int, dict] = {}
     for row, r in todo:
         platform = str(r.get("platform") or "x")
         posts = [p for p in [str(r.get("score_reason", "")), str(r.get("matched_query", ""))] if p]
@@ -149,7 +152,11 @@ def cmd_score(cfg, args) -> int:
             try:
                 src = sources.get(platform) or get_source(platform, cfg)
                 sources[platform] = src
-                posts = [post_line(p) for p in src.recent_posts(str(r["username"]), 20)] or posts
+                recent = src.recent_posts(str(r["username"]), 20)
+                posts = [post_line(p) for p in recent] or posts
+                if recent:  # engagement on their latest posts, not just the search hits
+                    stats[row] = {"avg_views": round(sum(p.views for p in recent) / len(recent)),
+                                  "avg_likes": round(sum(p.likes for p in recent) / len(recent), 1)}
             except Exception as e:
                 print(f"  could not fetch posts for @{r['username']}: {e}")
         if str(r.get("competitor_post_text", "")).strip():
@@ -179,6 +186,7 @@ def cmd_score(cfg, args) -> int:
         updates.append((x.row, {
             "score": a.score, "score_reason": a.reason, "tags": ", ".join(a.tags), "icp_fit": a.icp_fit,
             "opener": a.opener if ok else "", "status": "scored" if ok else "rejected",
+            **stats.get(x.row, {}),
         }))
         if args.dry_run:
             print(f"{x.platform}:{x.username}\t{a.score}\t{a.icp_fit}\t{a.reason}\n    opener: {a.opener}")

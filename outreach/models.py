@@ -68,6 +68,7 @@ class Creator:
     competitor: str = ""        # labels of the fixed queries this creator matched
     competitor_post: str = ""   # URL of their most-liked matching post
     competitor_post_text: str = ""
+    competitor_post_date: str = ""
 
     @property
     def key(self) -> str:

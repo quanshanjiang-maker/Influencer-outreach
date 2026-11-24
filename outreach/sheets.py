@@ -23,7 +23,7 @@ CANDIDATE_HEADERS = [
     "sent_at", "followup_count", "message_id",
     "price_post", "price_thread", "price_retweet", "price_quote", "leader_review", "leader_note",
     "icp_fit", "location", "account_created", "dm_open",
-    "competitor", "competitor_post", "competitor_post_text",
+    "competitor", "competitor_post", "competitor_post_date", "competitor_post_text", "avg_views",
 ]
 
 # X rates: a plain post, a thread, a retweet and a quote post (quote tweet).
@@ -318,6 +318,7 @@ class Sheet:
                 "dm_open": c.dm_open,
                 "competitor": c.competitor,
                 "competitor_post": c.competitor_post,
+                "competitor_post_date": c.competitor_post_date,
                 "competitor_post_text": c.competitor_post_text[:500],
                 "status": "new",
             }
