@@ -362,6 +362,16 @@ class Sheet:
             self.book.worksheet(self.tabs[key]).batch_update(data, value_input_option="RAW")
         return len(updates)
 
+    def sort_candidates(self, by: str = "score") -> int:
+        """Sort whole data rows by one column, highest first; empty cells go to the bottom."""
+        cols = self._columns("candidates", CANDIDATE_HEADERS)
+        ws = self.book.worksheet(self.tabs["candidates"])
+        n = len(ws.col_values(1))
+        if n < 3:
+            return max(n - 1, 0)
+        ws.sort((cols.index(by) + 1, "des"), range=f"A2:{rowcol_to_a1(n, len(cols))}")
+        return n - 1
+
     # --- columns -------------------------------------------------------
     def _columns(self, key: str, required: list[str]) -> list[str]:
         """Header row of a tab; appends any required header that is missing

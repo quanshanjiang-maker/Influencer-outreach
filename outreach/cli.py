@@ -389,6 +389,22 @@ def cmd_template_import(cfg, args) -> int:
     return 0
 
 
+def cmd_sort(cfg, args) -> int:
+    """Sort Candidates by a column (default score), highest first, and print a summary."""
+    from collections import Counter
+
+    sheet = _sheet(cfg)
+    n = sheet.sort_candidates(args.by)
+    rows = [r for _, r in sheet.read_candidates()]
+    print(f"Sorted {n} rows by {args.by}, highest first (empty at the bottom).")
+    for name in sorted({str(r.get("criteria", "")) for r in rows}):
+        part = [r for r in rows if str(r.get("criteria", "")) == name]
+        scores = Counter(str(r.get("score", "")).strip() or "unscored" for r in part)
+        fits = Counter(str(r.get("icp_fit", "")).strip() or "-" for r in part)
+        print(f"  {name}: {len(part)} rows; scores {dict(sorted(scores.items()))}; icp_fit {dict(fits)}")
+    return 0
+
+
 def cmd_archive(cfg, args) -> int:
     """Move one platform's rows out of Candidates into a dated archive tab (a full copy)."""
     n, title = _sheet(cfg).archive_candidates(args.platform.lower(), dry_run=args.dry_run)
@@ -487,6 +503,8 @@ def main(argv: list[str] | None = None) -> int:
     ci.add_argument("--only", action="store_true", help="disable every other Criteria row")
     ti = sub.add_parser("template-import", help="add or replace a Templates row from a YAML file")
     ti.add_argument("file")
+    so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
+    so.add_argument("--by", default="score")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
     ar.add_argument("--platform", required=True)
     ar.add_argument("--dry-run", action="store_true")
@@ -505,7 +523,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
