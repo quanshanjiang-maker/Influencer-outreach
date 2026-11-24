@@ -17,6 +17,7 @@ class Criteria:
     max_candidates: int = 200
     enabled: bool = True
     regions: list[str] = field(default_factory=list)   # ISO country codes, used by EasyKOL
+    rules: str = ""             # free-text hard rules, exclusions and ICP tiers for the scorer
     platforms: list[str] = field(default_factory=lambda: ["x"])
 
 
@@ -50,6 +51,8 @@ class Creator:
     bio: str = ""
     location: str = ""
     website: str = ""
+    account_created: str = ""   # X: account creation date
+    dm_open: str = ""           # X: "yes" / "no" / "" (unknown)
     lang: str = ""
     tweets: list[Post] = field(default_factory=list)
     matched_queries: set[str] = field(default_factory=set)

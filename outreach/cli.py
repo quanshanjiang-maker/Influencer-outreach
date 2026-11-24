@@ -107,7 +107,7 @@ def cmd_search(cfg, args) -> int:
 def cmd_score(cfg, args) -> int:
     import anthropic
 
-    from .score import ScoreInput, assess_many
+    from .score import ScoreInput, assess_many, post_line
     from .sheets import Sheet
     from .sources import get_source
 
@@ -115,7 +115,8 @@ def cmd_score(cfg, args) -> int:
     min_score = int(sc.get("min_score", 7))
     limit = args.limit or int(sc.get("max_per_run", 1000))
     sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
-    briefs = {c.name: f"{c.keywords}. {c.description}".strip() for c in sheet.read_criteria()}
+    crits = {c.name: c for c in sheet.read_criteria()}
+    briefs = {n: f"{c.keywords}. {c.description}".strip() for n, c in crits.items()}
 
     todo = [(row, r) for row, r in sheet.read_candidates()
             if str(r.get("status", "")).strip() == "new" and str(r.get("score", "")).strip() == ""]
@@ -133,7 +134,7 @@ def cmd_score(cfg, args) -> int:
             try:
                 src = sources.get(platform) or get_source(platform, cfg)
                 sources[platform] = src
-                posts = [p.text for p in src.recent_posts(str(r["username"]), 20)] or posts
+                posts = [post_line(p) for p in src.recent_posts(str(r["username"]), 20)] or posts
             except Exception as e:
                 print(f"  could not fetch posts for @{r['username']}: {e}")
         inputs.append(ScoreInput(
@@ -141,6 +142,8 @@ def cmd_score(cfg, args) -> int:
             followers=int(float(r.get("followers") or 0)), bio=str(r.get("bio", "")), posts=posts,
             brief=briefs.get(str(r.get("criteria")), str(r.get("criteria", ""))),
             pitch=sheet.pitch_for(str(r.get("criteria"))),
+            rules=getattr(crits.get(str(r.get("criteria"))), "rules", ""),
+            profile={k: r.get(k, "") for k in ("location", "account_created", "dm_open", "website")},
         ))
 
     client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
@@ -152,17 +155,17 @@ def cmd_score(cfg, args) -> int:
         a = results.get(x.row)
         if a is None:
             continue
-        ok = a.score >= min_score
+        ok = a.score >= min_score and a.icp_fit != "Low"  # Low = don't contact
         kept += ok
         updates.append((x.row, {
-            "score": a.score, "score_reason": a.reason, "tags": ", ".join(a.tags),
+            "score": a.score, "score_reason": a.reason, "tags": ", ".join(a.tags), "icp_fit": a.icp_fit,
             "opener": a.opener if ok else "", "status": "scored" if ok else "rejected",
         }))
         if args.dry_run:
-            print(f"{x.platform}:{x.username}\t{a.score}\t{a.reason}\n    opener: {a.opener}")
+            print(f"{x.platform}:{x.username}\t{a.score}\t{a.icp_fit}\t{a.reason}\n    opener: {a.opener}")
     if not args.dry_run:
         sheet.update_candidates(updates)
-    print(f"Scored {len(updates)}/{len(inputs)}; {kept} at or above {min_score}.")
+    print(f"Scored {len(updates)}/{len(inputs)}; {kept} kept (score >= {min_score} and ICP fit not Low).")
     return 0
 
 
@@ -328,6 +331,33 @@ def cmd_replies(cfg, args) -> int:
     return 0
 
 
+def cmd_criteria_import(cfg, args) -> int:
+    """Add or update one Criteria row from a YAML file (keys are Criteria column names)."""
+    import yaml
+
+    row = yaml.safe_load(open(args.file, encoding="utf-8").read())
+    if not isinstance(row, dict) or not row.get("name"):
+        raise SystemExit("The file must be a mapping with at least a 'name'.")
+    if isinstance(row.get("platforms"), list):
+        row["platforms"] = ",".join(row["platforms"])
+    if isinstance(row.get("regions"), list):
+        row["regions"] = ",".join(row["regions"])
+    result = _sheet(cfg).upsert_criteria(row, only=args.only)
+    print(f"Criteria '{row['name']}' {result}" + ("; other rows disabled." if args.only else "."))
+    return 0
+
+
+def cmd_archive(cfg, args) -> int:
+    """Move one platform's rows out of Candidates into a dated archive tab (a full copy)."""
+    n, title = _sheet(cfg).archive_candidates(args.platform.lower(), dry_run=args.dry_run)
+    if args.dry_run:
+        print(f"Would copy Candidates to '{title}' and remove {n} {args.platform} rows.")
+    else:
+        print(f"Removed {n} {args.platform} rows; a full copy is in the '{title}' tab." if n
+              else f"No {args.platform} rows to remove.")
+    return 0
+
+
 def cmd_test_email(cfg, args) -> int:
     """Send one test email from each mailbox to its own address (never to a creator)."""
     from .mail import get_mailbox
@@ -409,6 +439,12 @@ def main(argv: list[str] | None = None) -> int:
     se.add_argument("--max", type=int, help="send at most N this run")
     rp = sub.add_parser("replies", help="check sent threads for replies, bounces and follow-ups")
     rp.add_argument("--dry-run", action="store_true")
+    ci = sub.add_parser("criteria-import", help="add or update a Criteria row from a YAML file")
+    ci.add_argument("file")
+    ci.add_argument("--only", action="store_true", help="disable every other Criteria row")
+    ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
+    ar.add_argument("--platform", required=True)
+    ar.add_argument("--dry-run", action="store_true")
     sub.add_parser("test-email", help="send one test email from each mailbox to itself")
     sl = sub.add_parser("slack", help="Slack bot: post the shortlist and answer thread replies")
     sl.add_argument("action", choices=["digest", "poll", "listen"])
@@ -423,7 +459,8 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(args.config)
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
-            "slack": cmd_slack, "test-email": cmd_test_email, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "slack": cmd_slack, "test-email": cmd_test_email,
+            "criteria-import": cmd_criteria_import, "archive-candidates": cmd_archive, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

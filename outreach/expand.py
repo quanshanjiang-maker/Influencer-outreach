@@ -40,7 +40,9 @@ def expand_queries(client: anthropic.Anthropic, model: str, criteria: Criteria, 
     prompt = (
         f"Topic keywords: {criteria.keywords}\n"
         f"What kind of creators we want: {criteria.description or '(not given)'}\n"
-        f"Language: {criteria.language or 'any'}\n"
+        + (f"Targeting rules (for context; the scorer enforces them): {criteria.rules[:1500]}\n"
+           if criteria.rules.strip() else "")
+        + f"Language: {criteria.language or 'any'}\n"
         f"Number of queries: {n}\n"
         f"Today's date: {date.today().isoformat()} (if a query names a year, use this one)"
     )

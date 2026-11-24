@@ -10,7 +10,7 @@ from .models import PLATFORMS, Creator, Criteria
 
 CRITERIA_HEADERS = [
     "enabled", "name", "platforms", "regions", "pitch", "keywords", "description", "language",
-    "min_followers", "max_followers", "min_avg_likes", "max_candidates",
+    "min_followers", "max_followers", "min_avg_likes", "max_candidates", "rules",
 ]
 
 CANDIDATE_HEADERS = [
@@ -21,6 +21,7 @@ CANDIDATE_HEADERS = [
     "send_from", "status", "thread_id", "reply_category", "reply_summary", "notes",
     "sent_at", "followup_count", "message_id",
     "price_post", "price_thread", "price_quote", "leader_review", "leader_note",
+    "icp_fit", "location", "account_created", "dm_open",
 ]
 
 # X rates: a plain post, a thread, and a quote post (quote tweet).
@@ -34,7 +35,7 @@ REVIEW_PENDING, REVIEW_YES, REVIEW_NO = "待审", "通过", "不要"
 REVIEW_OPTIONS = [REVIEW_PENDING, REVIEW_YES, REVIEW_NO]
 # Columns the tool fills for itself; hidden by setup-sheet so the reviewer sees a short table.
 # Hiding never affects the tool: it reads and writes columns by header name.
-HIDDEN_COLUMNS = ["date", "criteria", "language", "matched_query", "top_tweet_url", "email_source",
+HIDDEN_COLUMNS = ["date", "criteria", "language", "matched_query", "top_tweet_url", "email_source", "account_created",
                   "email_status", "opener", "send_from", "thread_id", "reply_category", "sent_at",
                   "followup_count", "message_id"]
 LEADER_VIEW, APPROVED_VIEW = "Leader 审批（待审）", "推进中（通过）"
@@ -211,8 +212,56 @@ class Sheet:
                 max_candidates=_int(r.get("max_candidates"), 200) or 200,
                 platforms=platforms,
                 regions=[x.strip().upper() for x in str(r.get("regions") or "").split(",") if x.strip()],
+                rules=str(r.get("rules", "") or ""),
             ))
         return out
+
+    def upsert_criteria(self, row: dict, only: bool = False) -> str:
+        """Write one Criteria row matched by name; with only=True disable every other row."""
+        cols = self._columns("criteria", CRITERIA_HEADERS)
+        rows = self.read_tab("criteria", CRITERIA_HEADERS)
+        name = str(row["name"]).strip()
+        match = next((n for n, r in rows if str(r.get("name", "")).strip() == name), None)
+        values = {k: ("TRUE" if v is True else "FALSE" if v is False else str(v)) for k, v in row.items()}
+        values.setdefault("enabled", "TRUE")
+        unknown = [k for k in values if k not in cols]
+        if unknown:
+            raise ValueError(f"Unknown Criteria columns: {unknown}")
+        if match is None:
+            self.append_tab("criteria", CRITERIA_HEADERS, [values])
+        else:
+            self.update_tab("criteria", CRITERIA_HEADERS, [(match, values)])
+        if only:
+            self.update_tab("criteria", CRITERIA_HEADERS,
+                            [(n, {"enabled": "FALSE"}) for n, r in rows
+                             if str(r.get("name", "")).strip() != name and _truthy(r.get("enabled", "TRUE"))])
+        return "updated" if match else "added"
+
+    def archive_candidates(self, platform: str, dry_run: bool = False) -> tuple[int, str]:
+        """Copy the whole Candidates tab to a dated archive tab, then delete that platform's rows."""
+        rows = self.read_candidates()
+        doomed = [n for n, r in rows if str(r.get("platform", "")).strip().lower() == platform]
+        title = f"Archive {platform} {date.today().isoformat()}"
+        if dry_run or not doomed:
+            return len(doomed), title
+        ws = self.book.worksheet(self.tabs["candidates"])
+        existing = {w.title for w in self.book.worksheets()}
+        if title not in existing:
+            self.book.duplicate_sheet(ws.id, new_sheet_name=title, insert_sheet_index=len(existing))
+        # delete bottom-up in contiguous blocks so row numbers stay valid
+        blocks, start, prev = [], None, None
+        for n in sorted(doomed):
+            if start is None:
+                start = prev = n
+            elif n == prev + 1:
+                prev = n
+            else:
+                blocks.append((start, prev))
+                start = prev = n
+        blocks.append((start, prev))
+        for a, b in reversed(blocks):
+            ws.delete_rows(a, b)
+        return len(doomed), title
 
     # --- candidates ----------------------------------------------------
     def known_creators(self) -> set[str]:
@@ -247,6 +296,9 @@ class Sheet:
                 "email": c.email,
                 "email_source": c.email_source,
                 "score_reason": c.match_reason,
+                "location": c.location,
+                "account_created": c.account_created,
+                "dm_open": c.dm_open,
                 "status": "new",
             }
             rows.append(row)
@@ -264,15 +316,29 @@ class Sheet:
         return [(i + 2, r) for i, r in enumerate(ws.get_all_records())]
 
     def update_candidates(self, updates: list[tuple[int, dict]]) -> int:
-        """Write {column: value} changes for many rows in one request.
-        Columns are found by header name, so users may reorder or add columns."""
-        cols = self._columns("candidates", CANDIDATE_HEADERS)
-        data = []
-        for row, changes in updates:
-            for col, value in changes.items():
-                data.append({"range": rowcol_to_a1(row, cols.index(col) + 1), "values": [[value]]})
+        """Columns are found by header name, so users may reorder or add columns."""
+        return self.update_tab("candidates", CANDIDATE_HEADERS, updates)
+
+    # --- generic tab access -------------------------------------------
+    def read_tab(self, key: str, headers: list[str]) -> list[tuple[int, dict]]:
+        self._columns(key, headers)
+        return [(i + 2, r) for i, r in enumerate(self.book.worksheet(self.tabs[key]).get_all_records())]
+
+    def append_tab(self, key: str, headers: list[str], records: list[dict]) -> int:
+        if not records:
+            return 0
+        cols = self._columns(key, headers)
+        self.book.worksheet(self.tabs[key]).append_rows(
+            [[r.get(h, "") for h in cols] for r in records], value_input_option="RAW")
+        return len(records)
+
+    def update_tab(self, key: str, headers: list[str], updates: list[tuple[int, dict]]) -> int:
+        """Write {column: value} changes for many rows in one request, finding columns by header name."""
+        cols = self._columns(key, headers)
+        data = [{"range": rowcol_to_a1(row, cols.index(col) + 1), "values": [[value]]}
+                for row, changes in updates for col, value in changes.items()]
         if data:
-            self.book.worksheet(self.tabs["candidates"]).batch_update(data, value_input_option="RAW")
+            self.book.worksheet(self.tabs[key]).batch_update(data, value_input_option="RAW")
         return len(updates)
 
     # --- columns -------------------------------------------------------
