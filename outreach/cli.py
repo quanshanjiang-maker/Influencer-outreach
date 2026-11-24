@@ -404,6 +404,23 @@ def cmd_sort(cfg, args) -> int:
     return 0
 
 
+def cmd_find(cfg, args) -> int:
+    """Look up creators in Candidates by handle or part of a handle (case-insensitive)."""
+    import re
+
+    norm = lambda x: re.sub(r"[^a-z0-9]", "", str(x).lower())
+    rows = _sheet(cfg).read_candidates()
+    for want in [w.strip().lstrip("@") for w in args.names.split(",") if w.strip()]:
+        exact = [(n, r) for n, r in rows if norm(r.get("username")) == norm(want)]
+        hits = exact or [(n, r) for n, r in rows if norm(want) in norm(r.get("username"))]
+        if not hits:
+            print(f"{want}: not in Candidates")
+        for n, r in hits[:5]:
+            print(f"{want}: {'match' if exact else 'partial'} row {n} @{r.get('username')} "
+                  f"({r.get('platform')}, {r.get('criteria')}, status {r.get('status')})")
+    return 0
+
+
 def cmd_archive(cfg, args) -> int:
     """Move one platform's rows out of Candidates into a dated archive tab (a full copy)."""
     n, title = _sheet(cfg).archive_candidates(args.platform.lower(), dry_run=args.dry_run)
@@ -502,6 +519,8 @@ def main(argv: list[str] | None = None) -> int:
     ci.add_argument("--only", action="store_true", help="disable every other Criteria row")
     ti = sub.add_parser("template-import", help="add or replace a Templates row from a YAML file")
     ti.add_argument("file")
+    fi = sub.add_parser("find-candidates", help="look up creators in Candidates by handle")
+    fi.add_argument("--names", required=True, help="comma list of handles or parts of handles")
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
     so.add_argument("--by", default="score")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
@@ -522,7 +541,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

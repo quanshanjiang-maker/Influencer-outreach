@@ -21,6 +21,7 @@ on:
           - criteria-import criteria/x-competitors.yaml --only
           - template-import templates/frevana-default.yaml
           - sort-candidates
+          - find-candidates
           - archive-candidates --platform youtube --dry-run
           - archive-candidates --platform youtube
           - approve --dry-run
