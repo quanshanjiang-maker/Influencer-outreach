@@ -20,18 +20,25 @@ CANDIDATE_HEADERS = [
     "email", "email_source", "email_status", "opener",
     "send_from", "status", "thread_id", "reply_category", "reply_summary", "notes",
     "sent_at", "followup_count", "message_id",
-    "quote", "leader_review", "leader_note",
+    "price_post", "price_thread", "price_quote", "leader_review", "leader_note",
 ]
 
+# X rates: a plain post, a thread, and a quote post (quote tweet).
+PRICE_COLUMNS = ["price_post", "price_thread", "price_quote"]
+
 # Leader review: one Candidates table, a dropdown column and two saved filter views.
-# The tool never overwrites these columns except to mark a new price reply as pending review.
+# A row shows up for the leader as soon as any price is filled and the leader hasn't decided yet.
+# The tool only fills empty price cells from replies and never touches leader_review / leader_note.
 REVIEW_COLUMN = "leader_review"
 REVIEW_PENDING, REVIEW_YES, REVIEW_NO = "待审", "通过", "不要"
 REVIEW_OPTIONS = [REVIEW_PENDING, REVIEW_YES, REVIEW_NO]
-REVIEW_VIEWS = {  # filter view title -> leader_review value it shows
-    "Leader 审批（待审）": REVIEW_PENDING,
-    "推进中（通过）": REVIEW_YES,
-}
+# Columns the tool fills for itself; hidden by setup-sheet so the reviewer sees a short table.
+# Hiding never affects the tool: it reads and writes columns by header name.
+HIDDEN_COLUMNS = ["date", "criteria", "language", "matched_query", "top_tweet_url", "email_source",
+                  "email_status", "opener", "send_from", "thread_id", "reply_category", "sent_at",
+                  "followup_count", "message_id"]
+LEADER_VIEW, APPROVED_VIEW = "Leader 审批（待审）", "推进中（通过）"
+
 
 OUTREACH_HEADERS = [
     "sent_at", "platform", "username", "email", "send_from", "subject", "thread_id",
@@ -51,7 +58,8 @@ EXAMPLE_CRITERIA = [
 EXAMPLE_TEMPLATE = [
     "default",
     "Collab idea for {name}",
-    "Hi {name},\n\n{opener}\n\n<your pitch here>\n\nBest,\n<your name>\n\n"
+    "Hi {name},\n\n{opener}\n\n<your pitch here>\n\n"
+    "If you're open to it, could you share your rates for a post, a thread and a quote post?\n\nBest,\n<your name>\n\n"
     "(Reply 'unsubscribe' and I won't email again.)",
 ]
 
@@ -122,8 +130,13 @@ class Sheet:
 
     def setup_review(self) -> list[str]:
         """Add the leader review dropdown, colors and filter views to Candidates (idempotent)."""
-        cols = self._columns("candidates", CANDIDATE_HEADERS)
         ws = self.book.worksheet(self.tabs["candidates"])
+        header = [h.strip() for h in ws.row_values(1)]
+        if "quote" in header and "price_post" not in header:  # older single price column
+            ws.update(range_name=rowcol_to_a1(1, header.index("quote") + 1), values=[["price_post"]],
+                      value_input_option="RAW")
+            self._cols.pop("candidates", None)
+        cols = self._columns("candidates", CANDIDATE_HEADERS)
         sid, c = ws.id, cols.index(REVIEW_COLUMN)
         meta = self.book.fetch_sheet_metadata(params={"fields": "sheets(properties.sheetId,filterViews,conditionalFormats)"})
         mine = next((x for x in meta.get("sheets", []) if x["properties"]["sheetId"] == sid), {})
@@ -140,19 +153,38 @@ class Sheet:
                     "ranges": [column],
                     "booleanRule": {"condition": {"type": "TEXT_EQ", "values": [{"userEnteredValue": value}]},
                                     "format": {"backgroundColor": dict(zip(("red", "green", "blue"), rgb))}}}}})
+        for name in HIDDEN_COLUMNS:
+            if name in cols:
+                i = cols.index(name)
+                requests.append({"updateDimensionProperties": {
+                    "range": {"sheetId": sid, "dimension": "COLUMNS", "startIndex": i, "endIndex": i + 1},
+                    "properties": {"hiddenByUser": True}, "fields": "hiddenByUser"}})
         added = []
         score = cols.index("score") if "score" in cols else None
-        for title, value in REVIEW_VIEWS.items():
-            if title in have_views:
-                continue
+
+        def col(name):  # "$X2": absolute column, first data row
+            return "$" + rowcol_to_a1(2, cols.index(name) + 1)
+
+        prices = ",".join(f"LEN({col(p)})>0" for p in PRICE_COLUMNS)
+        review = col(REVIEW_COLUMN)
+        formulas = {
+            LEADER_VIEW: f'=AND(OR({prices}),{review}<>"{REVIEW_YES}",{review}<>"{REVIEW_NO}")',
+            APPROVED_VIEW: f'={review}="{REVIEW_YES}"',
+        }
+        ids = {v.get("title"): v.get("filterViewId") for v in mine.get("filterViews", [])}
+        for title, formula in formulas.items():
             view = {"title": title, "range": {"sheetId": sid, "startRowIndex": 0, "startColumnIndex": 0,
                                               "endColumnIndex": len(cols)},
                     "filterSpecs": [{"columnIndex": c, "filterCriteria": {"condition": {
-                        "type": "TEXT_EQ", "values": [{"userEnteredValue": value}]}}}]}
+                        "type": "CUSTOM_FORMULA", "values": [{"userEnteredValue": formula}]}}}]}
             if score is not None:
                 view["sortSpecs"] = [{"dimensionIndex": score, "sortOrder": "DESCENDING"}]
-            requests.append({"addFilterView": {"filter": view}})
-            added.append(f"filter view '{title}'")
+            if title in ids:
+                view["filterViewId"] = ids[title]
+                requests.append({"updateFilterView": {"filter": view, "fields": "range,filterSpecs,sortSpecs"}})
+            else:
+                requests.append({"addFilterView": {"filter": view}})
+                added.append(f"filter view '{title}'")
         self.book.batch_update({"requests": requests})
         return added
 

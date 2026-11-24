@@ -303,9 +303,10 @@ def cmd_replies(cfg, args) -> int:
             else:
                 status = "unsubscribed" if c.category == "unsubscribe" else "replied"
                 change = {"status": status, "reply_category": c.category, "reply_summary": c.summary}
-                if c.category == "pricing" and not str(r.get("leader_review", "")).strip():
-                    from .sheets import REVIEW_PENDING
-                    change["leader_review"] = REVIEW_PENDING  # shows up in the leader's review view
+                for col in ("price_post", "price_thread", "price_quote"):  # fill blanks only
+                    value = str(getattr(c, col, "") or "").strip()[:60]
+                    if value and not str(r.get(col, "")).strip():
+                        change[col] = value  # any price puts the row in the leader's review view
         elif followup_due(r, after, max_fu, now):
             change = {"status": "followup_due"}
         if change is None:
