@@ -18,6 +18,11 @@ class Criteria:
     enabled: bool = True
     regions: list[str] = field(default_factory=list)   # ISO country codes, used by EasyKOL
     rules: str = ""             # free-text hard rules, exclusions and ICP tiers for the scorer
+    # Fixed searches as (label, query); when set, no Claude query expansion. The label
+    # (e.g. a competitor's name) is written to the "competitor" column.
+    queries: list[tuple[str, str]] = field(default_factory=list)
+    since_days: int = 0         # X: only posts from the last N days (0 = no limit)
+    pages_per_query: int = 0    # 0 = use config search.pages_per_query
     platforms: list[str] = field(default_factory=lambda: ["x"])
 
 
@@ -60,6 +65,9 @@ class Creator:
     email_source: str = ""
     relevance: float = 0.0      # provider's own relevance score, 0-1, if any
     match_reason: str = ""
+    competitor: str = ""        # labels of the fixed queries this creator matched
+    competitor_post: str = ""   # URL of their most-liked matching post
+    competitor_post_text: str = ""
 
     @property
     def key(self) -> str:

@@ -23,7 +23,7 @@ You do two things; the rest runs on its own.
 | tab | what is in it |
 | --- | --- |
 | Criteria | your topics, platforms, countries, follower range, a one-line pitch |
-| Candidates | one row per creator: platform, profile link, followers, average likes, bio, fit score and reason, email and where it came from, drafted opener, status (ready / approved / sent / replied / bounced...), plus X rates (price_post, price_thread, price_quote), leader_review (待审 / 通过 / 不要 dropdown) and leader_note for your leader's review. Two saved filter views: "Leader 审批（待审）" shows every row with a price that the leader hasn't decided yet, "推进中（通过）" shows the approved ones. Columns only the tool uses are hidden. |
+| Candidates | one row per creator: platform, profile link, followers, average likes, bio, fit score and reason, email and where it came from, drafted opener, status (ready / approved / sent / replied / bounced...), plus X rates (price_post, price_thread, price_retweet, price_quote), leader_review (待审 / 通过 / 不要 dropdown) and leader_note for your leader's review. Two saved filter views: "Leader 审批（待审）" shows every row with a price that the leader hasn't decided yet, "推进中（通过）" shows the approved ones. Columns only the tool uses are hidden. |
 | Outreach | log of every email sent and every reply |
 | Templates | your email subject and body, with `{name}` and `{opener}` filled in per creator |
 
@@ -144,6 +144,10 @@ The bot only changes the sheet (approve, skip, edit openers); emails go out on t
 | min_followers / max_followers | follower range (0 = no max) |
 | min_avg_likes | minimum average likes on matched posts |
 | max_candidates | how many creators to keep per day |
+| rules | optional free-text hard rules, exclusions and ICP tiers for the scorer |
+| queries | optional fixed X searches, one per line as `Label: query` (e.g. a competitor's name); skips query expansion and fills the `competitor` and `competitor_post` columns |
+| since_days | X only: only posts from the last N days (0 = no limit) |
+| pages_per_query | optional override of `search.pages_per_query` for this row |
 
 ## Adding another data source or mailbox
 

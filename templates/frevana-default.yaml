@@ -1,0 +1,22 @@
+# First email. Load into the Templates tab with:
+#   python -m outreach template-import templates/frevana-default.yaml
+# {name} is filled with the creator's display name (or handle if it has none).
+name: default
+subject: Quick collab question from Frevana
+body: |
+  Hi {name},
+
+  This is Amy from Frevana. We'd love to work with you on our Black Friday launch: for a limited time, people can regenerate videos and images from social media at no cost.
+
+  Could you share your rates for:
+  • a post
+  • a thread
+  • a retweet
+  • a quote repost
+
+  We're launching this Friday, November 27, so a quick reply would mean a lot.
+
+  Thank you so much!
+
+  Amy
+  Frevana | https://www.frevana.com

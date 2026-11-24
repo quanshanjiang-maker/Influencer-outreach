@@ -11,6 +11,7 @@ from .models import PLATFORMS, Creator, Criteria
 CRITERIA_HEADERS = [
     "enabled", "name", "platforms", "regions", "pitch", "keywords", "description", "language",
     "min_followers", "max_followers", "min_avg_likes", "max_candidates", "rules",
+    "queries", "since_days", "pages_per_query",
 ]
 
 CANDIDATE_HEADERS = [
@@ -20,12 +21,13 @@ CANDIDATE_HEADERS = [
     "email", "email_source", "email_status", "opener",
     "send_from", "status", "thread_id", "reply_category", "reply_summary", "notes",
     "sent_at", "followup_count", "message_id",
-    "price_post", "price_thread", "price_quote", "leader_review", "leader_note",
+    "price_post", "price_thread", "price_retweet", "price_quote", "leader_review", "leader_note",
     "icp_fit", "location", "account_created", "dm_open",
+    "competitor", "competitor_post", "competitor_post_text",
 ]
 
-# X rates: a plain post, a thread, and a quote post (quote tweet).
-PRICE_COLUMNS = ["price_post", "price_thread", "price_quote"]
+# X rates: a plain post, a thread, a retweet and a quote post (quote tweet).
+PRICE_COLUMNS = ["price_post", "price_thread", "price_retweet", "price_quote"]
 
 # Leader review: one Candidates table, a dropdown column and two saved filter views.
 # A row shows up for the leader as soon as any price is filled and the leader hasn't decided yet.
@@ -37,7 +39,7 @@ REVIEW_OPTIONS = [REVIEW_PENDING, REVIEW_YES, REVIEW_NO]
 # Hiding never affects the tool: it reads and writes columns by header name.
 HIDDEN_COLUMNS = ["date", "criteria", "language", "matched_query", "top_tweet_url", "email_source", "account_created",
                   "email_status", "opener", "send_from", "thread_id", "reply_category", "sent_at",
-                  "followup_count", "message_id"]
+                  "followup_count", "message_id", "competitor_post_text"]
 LEADER_VIEW, APPROVED_VIEW = "Leader 审批（待审）", "推进中（通过）"
 
 
@@ -60,7 +62,7 @@ EXAMPLE_TEMPLATE = [
     "default",
     "Collab idea for {name}",
     "Hi {name},\n\n{opener}\n\n<your pitch here>\n\n"
-    "If you're open to it, could you share your rates for a post, a thread and a quote post?\n\nBest,\n<your name>\n\n"
+    "If you're open to it, could you share your rates for a post, a thread, a retweet and a quote post?\n\nBest,\n<your name>\n\n"
     "(Reply 'unsubscribe' and I won't email again.)",
 ]
 
@@ -81,6 +83,18 @@ def _int(v, default=0) -> int:
         return int(float(str(v).replace(",", "").strip()))
     except ValueError:
         return default
+
+
+def parse_queries(text: str) -> list[tuple[str, str]]:
+    """One search per line, "Label: query" (the label is optional)."""
+    out = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        label, sep, q = line.partition(": ")
+        out.append((label.strip(), q.strip()) if sep and q.strip() else ("", line))
+    return out
 
 
 class Sheet:
@@ -213,6 +227,9 @@ class Sheet:
                 platforms=platforms,
                 regions=[x.strip().upper() for x in str(r.get("regions") or "").split(",") if x.strip()],
                 rules=str(r.get("rules", "") or ""),
+                queries=parse_queries(str(r.get("queries", "") or "")),
+                since_days=_int(r.get("since_days")),
+                pages_per_query=_int(r.get("pages_per_query")),
             ))
         return out
 
@@ -299,6 +316,9 @@ class Sheet:
                 "location": c.location,
                 "account_created": c.account_created,
                 "dm_open": c.dm_open,
+                "competitor": c.competitor,
+                "competitor_post": c.competitor_post,
+                "competitor_post_text": c.competitor_post_text[:500],
                 "status": "new",
             }
             rows.append(row)
@@ -370,6 +390,17 @@ class Sheet:
         self.book.worksheet(self.tabs["outreach"]).append_rows(
             [[r.get(h, "") for h in cols] for r in records], value_input_option="RAW")
         return len(records)
+
+    def upsert_template(self, name: str, subject: str, body: str) -> str:
+        """Add or replace one row of the Templates tab, matched by name."""
+        rows = self.read_tab("templates", TEMPLATE_HEADERS)
+        match = next((n for n, r in rows if str(r.get("name", "")).strip() == name), None)
+        values = {"name": name, "subject": subject, "body": body}
+        if match is None:
+            self.append_tab("templates", TEMPLATE_HEADERS, [values])
+            return "added"
+        self.update_tab("templates", TEMPLATE_HEADERS, [(match, values)])
+        return "updated"
 
     def read_templates(self) -> dict[str, tuple[str, str]]:
         """{name: (subject, body)} from the Templates tab."""

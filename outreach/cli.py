@@ -75,7 +75,15 @@ def cmd_search(cfg, args) -> int:
             source.regions = crit.regions
             source.min_followers, source.max_followers = crit.min_followers, crit.max_followers
             source.min_avg = crit.min_avg_likes
-        if source.expands_queries:
+        labels: dict[str, str] = {}
+        if crit.queries:
+            since = ""
+            if crit.since_days and platform == "x":
+                from datetime import date, timedelta
+                since = f" since:{(date.today() - timedelta(days=crit.since_days)).isoformat()}"
+            labels = {q + since: label for label, q in crit.queries}
+            queries = list(labels)
+        elif source.expands_queries:
             queries = expand_queries(
                 client, cfg.models.get("query_expansion", "claude-opus-5-5"), crit,
                 int(cfg.search.get("queries_per_criteria", 12)), platform=platform,
@@ -84,9 +92,14 @@ def cmd_search(cfg, args) -> int:
             queries = [f"{crit.description or crit.keywords} ({crit.keywords})"]
         result = run_search(
             source, crit, queries, known,
-            pages_per_query=int(cfg.search.get("pages_per_query", 3)),
+            pages_per_query=crit.pages_per_query or int(cfg.search.get("pages_per_query", 3)),
             tweet_budget=budgets.get(platform, 10**9),
         )
+        if labels:
+            for c in result.candidates:
+                c.competitor = ", ".join(sorted({labels[q] for q in c.matched_queries if labels.get(q)}))
+                top = c.top_tweet
+                c.competitor_post, c.competitor_post_text = (top.url, top.text) if top else ("", "")
         if platform in budgets:
             budgets[platform] -= result.tweets_fetched
         print(f"[{crit.name}/{platform}] queries={len(queries)} results={result.tweets_fetched} "
@@ -120,6 +133,8 @@ def cmd_score(cfg, args) -> int:
 
     todo = [(row, r) for row, r in sheet.read_candidates()
             if str(r.get("status", "")).strip() == "new" and str(r.get("score", "")).strip() == ""]
+    if args.criteria:
+        todo = [(row, r) for row, r in todo if str(r.get("criteria", "")) == args.criteria]
     todo = todo[:limit]
     if not todo:
         print("No new candidates to score.")
@@ -137,13 +152,17 @@ def cmd_score(cfg, args) -> int:
                 posts = [post_line(p) for p in src.recent_posts(str(r["username"]), 20)] or posts
             except Exception as e:
                 print(f"  could not fetch posts for @{r['username']}: {e}")
+        if str(r.get("competitor_post_text", "")).strip():
+            posts = [f"[post that matched the search, about {r.get('competitor') or 'a tracked brand'}] "
+                     f"{r['competitor_post_text']}"] + posts
         inputs.append(ScoreInput(
             row=row, platform=platform, username=str(r["username"]),
             followers=int(float(r.get("followers") or 0)), bio=str(r.get("bio", "")), posts=posts,
             brief=briefs.get(str(r.get("criteria")), str(r.get("criteria", ""))),
             pitch=sheet.pitch_for(str(r.get("criteria"))),
             rules=getattr(crits.get(str(r.get("criteria"))), "rules", ""),
-            profile={k: r.get(k, "") for k in ("location", "account_created", "dm_open", "website")},
+            profile={k: r.get(k, "") for k in ("location", "account_created", "dm_open", "website",
+                                                "competitor")},
         ))
 
     client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
@@ -306,7 +325,7 @@ def cmd_replies(cfg, args) -> int:
             else:
                 status = "unsubscribed" if c.category == "unsubscribe" else "replied"
                 change = {"status": status, "reply_category": c.category, "reply_summary": c.summary}
-                for col in ("price_post", "price_thread", "price_quote"):  # fill blanks only
+                for col in ("price_post", "price_thread", "price_retweet", "price_quote"):  # fill blanks only
                     value = str(getattr(c, col, "") or "").strip()[:60]
                     if value and not str(r.get(col, "")).strip():
                         change[col] = value  # any price puts the row in the leader's review view
@@ -342,8 +361,23 @@ def cmd_criteria_import(cfg, args) -> int:
         row["platforms"] = ",".join(row["platforms"])
     if isinstance(row.get("regions"), list):
         row["regions"] = ",".join(row["regions"])
+    if isinstance(row.get("queries"), dict):  # {label: query or [queries]}
+        row["queries"] = "\n".join(f"{k}: {q}" for k, v in row["queries"].items()
+                                   for q in (v if isinstance(v, list) else [v]))
     result = _sheet(cfg).upsert_criteria(row, only=args.only)
     print(f"Criteria '{row['name']}' {result}" + ("; other rows disabled." if args.only else "."))
+    return 0
+
+
+def cmd_template_import(cfg, args) -> int:
+    """Add or replace a Templates row from a YAML file with name, subject and body."""
+    import yaml
+
+    t = yaml.safe_load(open(args.file, encoding="utf-8").read())
+    if not isinstance(t, dict) or not all(t.get(k) for k in ("name", "subject", "body")):
+        raise SystemExit("The file needs name, subject and body.")
+    result = _sheet(cfg).upsert_template(str(t["name"]), str(t["subject"]), str(t["body"]).rstrip() + "\n")
+    print(f"Template '{t['name']}' {result}.")
     return 0
 
 
@@ -425,6 +459,7 @@ def main(argv: list[str] | None = None) -> int:
     sc = sub.add_parser("score", help="score new candidates and draft openers")
     sc.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
     sc.add_argument("--limit", type=int, help="score at most N candidates")
+    sc.add_argument("--criteria", help="only score rows found by the criteria row with this name")
     em = sub.add_parser("emails", help="find and verify emails for scored candidates")
     em.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
     em.add_argument("--limit", type=int, help="process at most N candidates")
@@ -442,6 +477,8 @@ def main(argv: list[str] | None = None) -> int:
     ci = sub.add_parser("criteria-import", help="add or update a Criteria row from a YAML file")
     ci.add_argument("file")
     ci.add_argument("--only", action="store_true", help="disable every other Criteria row")
+    ti = sub.add_parser("template-import", help="add or replace a Templates row from a YAML file")
+    ti.add_argument("file")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
     ar.add_argument("--platform", required=True)
     ar.add_argument("--dry-run", action="store_true")
@@ -460,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "archive-candidates": cmd_archive, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

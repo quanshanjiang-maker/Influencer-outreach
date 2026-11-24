@@ -18,6 +18,8 @@ on:
           - emails --dry-run
           - emails
           - criteria-import criteria/x-north-america.yaml --only
+          - criteria-import criteria/x-competitors.yaml --only
+          - template-import templates/frevana-default.yaml
           - archive-candidates --platform youtube --dry-run
           - archive-candidates --platform youtube
           - approve --dry-run
