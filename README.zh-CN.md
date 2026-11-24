@@ -4,8 +4,6 @@
 
 **一个帮做网红营销 (influencer marketing) 的自动化助手。** 每天自动在 X（推特）、YouTube、Instagram、TikTok 上找和你话题相关的博主，给每个人打一个匹配分，找到商务邮箱，写好个性化的第一句话；你批准后自动发邮件，并追踪谁回复了。所有结果都在一张 Google 表格里。
 
-> 状态：开发中。所有功能都已写好并通过单元测试 (unit test)，但还没有用真实账号测试过。
-
 ## 适合谁用
 
 每周要联系几十到几百个博主的市场 (marketing) 或商务合作 (partnerships) 同学，会一点网页开发 (web coding) 就够：会复制 API key、改配置文件、在 GitHub 上点点按钮。不需要写 Python，日常可以跟 Claude 或 Slack 机器人 (bot) 聊天来操作。

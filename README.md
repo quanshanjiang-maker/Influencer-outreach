@@ -4,8 +4,6 @@
 
 **An automated assistant for influencer marketing.** Every day it finds creators on X (Twitter), YouTube, Instagram and TikTok who talk about your topics, scores how well each one fits your brand, finds their business email, drafts a personalized first line, and after you approve, sends the emails and tracks who replied. Everything lands in one Google Sheet.
 
-> Status: early development. All features are written and unit-tested, but not yet tested with live accounts.
-
 ## Who it is for
 
 Marketing and partnerships people who contact dozens to hundreds of creators a week and are comfortable with light web coding (copying keys, editing a config file, clicking around GitHub). You do not need to write Python: you can run it by chatting with Claude or a Slack bot.
