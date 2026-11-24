@@ -81,8 +81,8 @@ mailboxes:
   #   password_env: COMPANY_MAIL_PASSWORD   # app password 应用专用密码
 
 sending:
-  max_per_run: 50
-  min_delay_seconds: 60       # random pause between emails 每封之间随机等待
-  max_delay_seconds: 180
+  max_per_run: 15             # emails per run (one batch); matches the daily warm-up limit 每批最多 15 封
+  min_delay_seconds: 60       # random 1-2 minute pause between emails 每封之间随机等 1-2 分钟
+  max_delay_seconds: 120
   followup_after_days: 4      # mark followup_due if no reply after N days
   max_followups: 1

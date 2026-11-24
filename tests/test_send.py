@@ -100,3 +100,14 @@ def test_bounce_detection_and_headers():
     msg = box.build("x@y.com", "s", "b", in_reply_to="<a@b>")
     assert msg["In-Reply-To"] == "<a@b>" and "unsubscribe" in msg["List-Unsubscribe"]
     assert isinstance(Reply("a", "d", "t"), Reply)
+
+
+def test_send_batch_pauses_between_emails_and_reports_each_send():
+    box = FakeBox("me@corp.com")
+    rot = send.Rotation([({"address": box.address, "daily_limit": 15}, box)], {})
+    todo = [(i + 2, {"username": f"u{i}", "status": "approved", "email": f"u{i}@x.com"}) for i in range(3)]
+    pauses, seen = [], []
+    send.send_batch(todo, {"default": ("hi", "body")}, rot, set(), max_send=10, delay=(60, 120),
+                    sleep=pauses.append, on_sent=lambda x: seen.append(x.row))
+    assert seen == [2, 3, 4] and len(pauses) == 2
+    assert all(60 <= p <= 120 for p in pauses)

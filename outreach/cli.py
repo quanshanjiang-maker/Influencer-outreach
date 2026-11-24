@@ -282,13 +282,12 @@ def cmd_send(cfg, args) -> int:
     rot = _rotation(cfg, sheet)
     results = send_batch(
         todo, sheet.read_templates(), rot, suppressed(rows),
-        max_send=args.max or int(sc.get("max_per_run", 50)),
-        delay=(float(sc.get("min_delay_seconds", 60)), float(sc.get("max_delay_seconds", 180))),
+        max_send=args.max or int(sc.get("max_per_run", 15)),
+        delay=(float(sc.get("min_delay_seconds", 60)), float(sc.get("max_delay_seconds", 120))),
         dry_run=args.dry_run,
+        on_sent=lambda x: (sheet.update_candidates([(x.row, x.changes)]), sheet.append_outreach([x.log]),
+                           print(f"  sent to @{x.record.get('username')}", flush=True)),
     )
-    if not args.dry_run:
-        sheet.update_candidates([(x.row, x.changes) for x in results])
-        sheet.append_outreach([x.log for x in results])
     print(f"{'Would send' if args.dry_run else 'Sent'} {len(results)} of {len(todo)} approved emails.")
     return 0
 

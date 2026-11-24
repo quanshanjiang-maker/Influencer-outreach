@@ -126,7 +126,10 @@ class SendResult:
 
 def send_batch(todo: list[tuple[int, dict]], templates: dict[str, tuple[str, str]], rotation: Rotation,
                blocked: set[str], max_send: int, delay: tuple[float, float] = (0, 0),
-               dry_run: bool = False, sleep=time.sleep, now=lambda: datetime.now(timezone.utc)) -> list[SendResult]:
+               dry_run: bool = False, sleep=time.sleep, now=lambda: datetime.now(timezone.utc),
+               on_sent=None) -> list[SendResult]:
+    """Send one at a time with a random pause between emails. on_sent(result) runs right after
+    each real send, so the sheet is updated even if the run is stopped mid-batch."""
     out: list[SendResult] = []
     for row, r in todo:
         if len(out) >= max_send:
@@ -173,6 +176,8 @@ def send_batch(todo: list[tuple[int, dict]], templates: dict[str, tuple[str, str
             "email": email, "send_from": box.address, "subject": subject, "thread_id": thread_id,
             "followup_count": count, "last_event": "followup" if followup else "sent", "last_event_at": ts,
         }))
+        if on_sent and not dry_run:
+            on_sent(out[-1])
     return out
 
 
