@@ -421,6 +421,37 @@ def cmd_find(cfg, args) -> int:
     return 0
 
 
+def cmd_profiles(cfg, args) -> int:
+    """Print public X profile stats for handles (or search by display name if no exact handle)."""
+    from statistics import median
+
+    from .sources import get_source
+
+    src = get_source("x", cfg)
+    for want in [w.strip().lstrip("@") for w in args.names.split(",") if w.strip()]:
+        try:
+            found = [src.user_info(want)]
+        except Exception:
+            found = [None]
+        if found[0] is None:
+            try:
+                found = src.user_search(want.replace("_", " "))[:3]
+            except Exception as e:
+                print(f"{want}: lookup failed ({e})")
+                continue
+            print(f"{want}: no exact handle; top matches by name:")
+        for c in [c for c in found if c]:
+            posts = src.recent_posts(c.username, 20)
+            views = [p.views for p in posts] or [0]
+            likes = [p.likes for p in posts] or [0]
+            print(f"  @{c.username} | {c.name} | followers {c.followers} | location {c.location or '-'} | "
+                  f"joined {c.account_created or '-'} | DM {c.dm_open or '-'} | posts {len(posts)} | "
+                  f"median views {int(median(views))} | avg views {int(sum(views) / len(views))} | "
+                  f"median likes {int(median(likes))} | last post {posts[0].created_at if posts else '-'}")
+            print(f"    bio: {c.bio[:160]!r}")
+    return 0
+
+
 def cmd_archive(cfg, args) -> int:
     """Move one platform's rows out of Candidates into a dated archive tab (a full copy)."""
     n, title = _sheet(cfg).archive_candidates(args.platform.lower(), dry_run=args.dry_run)
@@ -521,6 +552,8 @@ def main(argv: list[str] | None = None) -> int:
     ti.add_argument("file")
     fi = sub.add_parser("find-candidates", help="look up creators in Candidates by handle")
     fi.add_argument("--names", required=True, help="comma list of handles or parts of handles")
+    pr = sub.add_parser("x-profiles", help="print public X profile stats for handles")
+    pr.add_argument("--names", required=True, help="comma list of handles (or names to search)")
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
     so.add_argument("--by", default="score")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
@@ -541,7 +574,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "x-profiles": cmd_profiles, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
