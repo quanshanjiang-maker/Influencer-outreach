@@ -96,3 +96,18 @@ def test_parse_queries_labels():
     from outreach.sheets import parse_queries
     assert parse_queries("KREA: krea ai lang:en\n\n# skip\nplain query") == [
         ("KREA", "krea ai lang:en"), ("", "plain query")]
+
+
+def test_unseal_roundtrip_and_rejects_wrong_secret():
+    import base64, hashlib, hmac, os
+    import pytest
+    from outreach.cli import _unseal
+    key = hashlib.sha256(b"outreach-seal:s1").digest()
+    nonce, data = os.urandom(16), b'{"a": {"price_quote": "$30"}}'
+    stream = b"".join(hmac.new(key, nonce + i.to_bytes(4, "big"), hashlib.sha256).digest() for i in range(2))
+    body = bytes(a ^ b for a, b in zip(data, stream))
+    tag = hmac.new(key, nonce + body, hashlib.sha256).digest()[:16]
+    tok = base64.urlsafe_b64encode(nonce + tag + body).decode().rstrip("=")
+    assert _unseal(tok, "s1") == data
+    with pytest.raises(SystemExit):
+        _unseal(tok, "other")

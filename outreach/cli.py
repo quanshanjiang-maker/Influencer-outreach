@@ -452,6 +452,45 @@ def cmd_profiles(cfg, args) -> int:
     return 0
 
 
+def _unseal(token: str, secret: str) -> bytes:
+    """Decrypt a payload sealed with the same secret (HMAC-SHA256 keystream + tag), so private
+    values like prices never appear in plain text in public workflow inputs or logs."""
+    import base64
+    import hashlib
+    import hmac
+
+    raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+    nonce, tag, body = raw[:16], raw[16:32], raw[32:]
+    key = hashlib.sha256(("outreach-seal:" + secret).encode()).digest()
+    if not hmac.compare_digest(hmac.new(key, nonce + body, hashlib.sha256).digest()[:16], tag):
+        raise SystemExit("Sealed payload does not match this sheet.")
+    stream = b"".join(hmac.new(key, nonce + i.to_bytes(4, "big"), hashlib.sha256).digest()
+                      for i in range(len(body) // 32 + 1))
+    return bytes(a ^ b for a, b in zip(body, stream))
+
+
+def cmd_set_fields(cfg, args) -> int:
+    """Fill Candidates cells from a sealed JSON payload {handle: {column: value}}; prints no values."""
+    import json
+
+    from .sheets import CANDIDATE_HEADERS
+
+    data = json.loads(_unseal(args.sealed, str(cfg.sheet_id)))
+    sheet = _sheet(cfg)
+    rows = {str(r.get("username", "")).lower(): n for n, r in sheet.read_candidates()}
+    updates = []
+    for handle, changes in data.items():
+        bad = [c for c in changes if c not in CANDIDATE_HEADERS]
+        n = rows.get(handle.lower().lstrip("@"))
+        if bad or n is None:
+            print(f"@{handle}: skipped ({'unknown columns ' + str(bad) if bad else 'not in Candidates'})")
+            continue
+        updates.append((n, changes))
+        print(f"@{handle}: updated {', '.join(changes)} (row {n})")
+    sheet.update_candidates(updates)
+    return 0
+
+
 def cmd_archive(cfg, args) -> int:
     """Move one platform's rows out of Candidates into a dated archive tab (a full copy)."""
     n, title = _sheet(cfg).archive_candidates(args.platform.lower(), dry_run=args.dry_run)
@@ -554,6 +593,8 @@ def main(argv: list[str] | None = None) -> int:
     fi.add_argument("--names", required=True, help="comma list of handles or parts of handles")
     pr = sub.add_parser("x-profiles", help="print public X profile stats for handles")
     pr.add_argument("--names", required=True, help="comma list of handles (or names to search)")
+    sf = sub.add_parser("set-fields", help="fill Candidates cells from a sealed payload")
+    sf.add_argument("--sealed", required=True)
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
     so.add_argument("--by", default="score")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
@@ -574,7 +615,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "x-profiles": cmd_profiles, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
