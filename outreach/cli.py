@@ -416,6 +416,11 @@ def cmd_sort(cfg, args) -> int:
 
     sheet = _sheet(cfg)
     first, last = (int(x) for x in args.rows.split(":")) if args.rows else (None, None)
+    if args.blocked_last:
+        kept, blocked = sheet.move_blocked_last(first or 2, last)
+        print(f"Rows {first or 2}-{last}: {kept} kept at the top (rows {first or 2}-{(first or 2) + kept - 1}), "
+              f"{blocked} blocked moved below (from row {(first or 2) + kept}).")
+        return 0
     n = sheet.sort_candidates(args.by, first, last)
     rows = [r for i, r in sheet.read_candidates() if not args.rows or first <= i <= last]
     where = f"rows {first}-{last}" if args.rows else "all rows"
@@ -859,6 +864,7 @@ def main(argv: list[str] | None = None) -> int:
     sf.add_argument("--sealed-file", help="file in the repo holding a sealed token too long for a workflow input")
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
     so.add_argument("--by", default="score")
+    so.add_argument("--blocked-last", action="store_true", help="with --rows: only move blocked rows to the bottom")
     so.add_argument("--rows", help="only sort this sheet row range, e.g. 777:1003 (one search batch)")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
     ar.add_argument("--platform", required=True)
