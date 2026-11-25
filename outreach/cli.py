@@ -640,6 +640,56 @@ COUNTER_BODY = ("Hi, thank you for your reply. We have a limited budget this tim
                 "Would {amount} work for you for a quote this time?\n\nBest,\nAmy\nFrevana")
 
 
+def cmd_socials(cfg, args) -> int:
+    """Look for each creator's TikTok and Instagram: links in the bio, the website and the page it
+    links to (link-in-bio pages), plus a same-name check on TikTok (marked as a guess). Prints one
+    sealed token; nothing is written to the sheet."""
+    import json
+    import re
+
+    import requests
+
+    ua = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
+    tt = re.compile(r"tiktok\.com/@([A-Za-z0-9_.]{2,30})", re.I)
+    ig = re.compile(r"instagram\.com/(?!p/|reel/|explore/|accounts/)([A-Za-z0-9_.]{2,30})", re.I)
+
+    def get(url):
+        try:
+            r = requests.get(url if "://" in url else "https://" + url, headers=ua, timeout=12)
+            return r.status_code, r.text[:400000]
+        except requests.RequestException:
+            return 0, ""
+
+    def tiktok_followers(name):
+        code, html = get(f"https://www.tiktok.com/@{name}")
+        m = re.search(r'"followerCount":(\d+)', html)
+        return code, (int(m.group(1)) if m else None)
+
+    want = {h.strip().lstrip("@").lower() for h in args.handles.split(",") if h.strip()}
+    out = {}
+    for _, r in _sheet(cfg).read_candidates():
+        h = str(r.get("username", ""))
+        if h.lower() not in want or h in out:
+            continue
+        text = f"{r.get('bio', '')} {r.get('website', '')}"
+        site = str(r.get("website", "")).strip()
+        if site:
+            text += " " + get(site)[1]
+        tts, igs = sorted({m.lower() for m in tt.findall(text)}), sorted({m.lower().rstrip(".") for m in ig.findall(text)})
+        res = {"website": site, "tiktok": [], "instagram": [f"https://instagram.com/{n}" for n in igs]}
+        for n in tts:
+            res["tiktok"].append({"url": f"https://tiktok.com/@{n}", "followers": tiktok_followers(n)[1], "guess": False})
+        if not tts:
+            code, f = tiktok_followers(h)
+            if f is not None:
+                res["tiktok"].append({"url": f"https://tiktok.com/@{h}", "followers": f, "guess": True})
+        out[h] = res
+    print(f"Checked {len(out)} creators.")
+    print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
+    return 0
+
+
 def cmd_counter_offer(cfg, args) -> int:
     """Reply in each creator's existing email thread with a counter-offer for one quote post.
     Input is a sealed JSON payload {handle: "$30"} (or {handle: {"body": ..., "status": ...}} for any
@@ -858,6 +908,8 @@ def main(argv: list[str] | None = None) -> int:
     dt.add_argument("--status", default="sent,countered,replied")
     co = sub.add_parser("counter-offer", help="reply in-thread with a counter-offer (sealed {handle: amount})")
     co.add_argument("--sealed", required=True)
+    so2 = sub.add_parser("socials", help="find TikTok / Instagram links for handles (sealed output)")
+    so2.add_argument("--handles", required=True)
     ds = sub.add_parser("dump-shortlist", help="print scored rows of some criteria as one sealed token")
     ds.add_argument("--criteria", default="")
     ds.add_argument("--min-score", type=float, default=7)
@@ -889,7 +941,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "dump-shortlist": cmd_dump_shortlist, "counter-offer": cmd_counter_offer, "dump-threads": cmd_dump_threads, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "dump-shortlist": cmd_dump_shortlist, "socials": cmd_socials, "counter-offer": cmd_counter_offer, "dump-threads": cmd_dump_threads, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

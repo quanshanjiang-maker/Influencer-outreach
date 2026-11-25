@@ -39,6 +39,7 @@ on:
           - replies
           - dump-replies
           - dump-shortlist
+          - socials
           - counter-offer
           - dump-threads
           - slack digest --dry-run
