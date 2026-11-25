@@ -719,7 +719,8 @@ def cmd_set_fields(cfg, args) -> int:
 
     from .sheets import CANDIDATE_HEADERS
 
-    data = json.loads(_unseal(args.sealed, str(cfg.sheet_id)))
+    token = open(args.sealed_file).read().strip() if args.sealed_file else args.sealed
+    data = json.loads(_unseal(token, str(cfg.sheet_id)))
     sheet = _sheet(cfg)
     rows: dict[str, list[int]] = {}
     for n, r in sheet.read_candidates():  # a handle can sit in more than one row (two searches)
@@ -854,7 +855,8 @@ def main(argv: list[str] | None = None) -> int:
     ds.add_argument("--min-score", type=float, default=7)
     sub.add_parser("dump-replies", help="print reply outcomes as one sealed token (no plain values)")
     sf = sub.add_parser("set-fields", help="fill Candidates cells from a sealed payload")
-    sf.add_argument("--sealed", required=True)
+    sf.add_argument("--sealed")
+    sf.add_argument("--sealed-file", help="file in the repo holding a sealed token too long for a workflow input")
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
     so.add_argument("--by", default="score")
     so.add_argument("--rows", help="only sort this sheet row range, e.g. 777:1003 (one search batch)")
