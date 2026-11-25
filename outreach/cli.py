@@ -602,7 +602,7 @@ def cmd_dump_shortlist(cfg, args) -> int:
     import json
 
     want = {c.strip() for c in args.criteria.split(",") if c.strip()}
-    cols = ["criteria", "profile_url", "followers", "bio", "score", "score_reason", "icp_fit", "location",
+    cols = ["criteria", "platform", "profile_url", "followers", "bio", "score", "score_reason", "icp_fit", "location",
             "avg_views", "avg_likes", "avg_replies", "median_replies", "email_status", "status", "dm_open",
             "account_created"]
     out = {}
