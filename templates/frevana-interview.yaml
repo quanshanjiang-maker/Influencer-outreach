@@ -1,0 +1,23 @@
+# First email plus an interview invite. Fill both TODOs before importing; send skips any
+# template that still contains TODO.
+name: interview
+subject: "Frevana x {name}"
+body: |
+  Hi {name},
+
+  This is Amy from Frevana. We'd love to work with you on our Black Friday launch: for a limited time, people can regenerate videos and images from social media at no cost.
+
+  Could you share your rates for:
+  • a post
+  • a thread
+  • a retweet
+  • a quote repost
+
+  We're launching this Friday, November 27, so a quick reply would mean a lot.
+
+  One more thing: we're talking with a few standout creators like you to learn how you create and what tools you rely on. Would you be open to a short 15-minute interview? As a thank-you, TODO_BENEFIT. You can pick a time that works for you here: TODO_LINK
+
+  Thank you so much!
+
+  Amy
+  Frevana | https://www.frevana.com

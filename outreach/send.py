@@ -139,9 +139,13 @@ def send_batch(todo: list[tuple[int, dict]], templates: dict[str, tuple[str, str
         if not email or email.lower() in blocked:
             log.warning("skip %s: no email or suppressed", r.get("username"))
             continue
-        tpl = templates.get("followup" if followup else "default")
+        name = "followup" if followup else (str(r.get("template", "")).strip() or "default")
+        tpl = templates.get(name)
         if not tpl:
-            raise ValueError("Templates tab needs a row named " + ("'followup'" if followup else "'default'"))
+            raise ValueError(f"Templates tab needs a row named '{name}'")
+        if "TODO" in tpl[0] + tpl[1]:  # never send a template with unfilled placeholders
+            log.warning("skip %s: template '%s' still has TODO placeholders", r.get("username"), name)
+            continue
         subject, body = render(tpl, r)
         if followup:
             box = rotation.by_address(str(r.get("send_from")))  # stay in the same thread/mailbox

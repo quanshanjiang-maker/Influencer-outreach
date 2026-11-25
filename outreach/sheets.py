@@ -24,7 +24,7 @@ CANDIDATE_HEADERS = [
     "price_post", "price_thread", "price_retweet", "price_quote", "leader_review", "leader_note",
     "icp_fit", "location", "account_created", "dm_open",
     "competitor", "competitor_post", "competitor_post_date", "competitor_post_text", "avg_views",
-    "avg_replies", "median_replies",
+    "avg_replies", "median_replies", "template",
 ]
 
 # X rates: a plain post, a thread, a retweet and a quote post (quote tweet).
