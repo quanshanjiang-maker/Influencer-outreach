@@ -204,11 +204,14 @@ class Sheet:
         return added
 
     # --- criteria ------------------------------------------------------
-    def read_criteria(self) -> list[Criteria]:
+    def read_criteria(self, include_disabled: bool = False) -> list[Criteria]:
+        """Enabled Criteria rows (for search). Scoring passes include_disabled=True so rows found
+        under a criteria that was later switched off are still judged by its own rules."""
         ws = self.book.worksheet(self.tabs["criteria"])
         out = []
         for r in ws.get_all_records():
-            if not _truthy(r.get("enabled", "TRUE")) or not str(r.get("keywords", "")).strip():
+            off = not _truthy(r.get("enabled", "TRUE")) and not include_disabled
+            if off or not str(r.get("keywords", "")).strip():
                 continue
             platforms = [p.strip().lower() for p in str(r.get("platforms") or "x").split(",") if p.strip()]
             bad = [p for p in platforms if p not in PLATFORMS]

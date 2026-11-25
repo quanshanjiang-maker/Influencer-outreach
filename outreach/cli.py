@@ -130,7 +130,7 @@ def cmd_score(cfg, args) -> int:
     min_score = int(sc.get("min_score", 7))
     limit = args.limit or int(sc.get("max_per_run", 1000))
     sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
-    crits = {c.name: c for c in sheet.read_criteria()}
+    crits = {c.name: c for c in sheet.read_criteria(include_disabled=True)}
     briefs = {n: f"{c.keywords}. {c.description}".strip() for n, c in crits.items()}
 
     todo = [(row, r) for row, r in sheet.read_candidates()
