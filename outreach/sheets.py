@@ -385,6 +385,8 @@ class Sheet:
         status except "blocked", then "blocked"); "*" stands for any status not named. Each group
         keeps its current order. Returns [(group, rows)] in sheet order."""
         order = [o.strip().lower() for o in (order or ["*", "blocked"])]
+        if "*" not in order:  # never drop rows whose status isn't named
+            order.append("*")
         cols = self._columns("candidates", CANDIDATE_HEADERS)
         ws = self.book.worksheet(self.tabs["candidates"])
         rng = f"{rowcol_to_a1(first, 1)}:{rowcol_to_a1(last, len(cols))}"
