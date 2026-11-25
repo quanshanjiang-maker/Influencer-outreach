@@ -599,7 +599,8 @@ COUNTER_BODY = ("Hi, thank you for your reply. We have a limited budget this tim
 
 def cmd_counter_offer(cfg, args) -> int:
     """Reply in each creator's existing email thread with a counter-offer for one quote post.
-    Input is a sealed JSON payload {handle: "$30"} so amounts never appear in public logs;
+    Input is a sealed JSON payload {handle: "$30"} (or {handle: {"body": ..., "status": ...}} for any
+    other in-thread reply) so amounts never appear in public logs;
     prints only handles. Sets status 'countered' and records the offer in our_offer."""
     import json
     import random
@@ -628,19 +629,21 @@ def cmd_counter_offer(cfg, args) -> int:
         if not first:
             time.sleep(random.uniform(20, 40))
         first = False
+        body = amount["body"] if isinstance(amount, dict) else COUNTER_BODY.format(amount=amount)
+        new_status = amount.get("status", "countered") if isinstance(amount, dict) else "countered"
         try:
-            box.send(email, subject, COUNTER_BODY.format(amount=amount), thread_id=thread,
+            box.send(email, subject, body, thread_id=thread,
                      in_reply_to=str(r.get("message_id", "")))
         except Exception as e:
             print(f"@{handle}: send failed ({type(e).__name__})")
             continue
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        updates.append((n, {"status": "countered"} | ({"our_offer": amount} if "our_offer" in r else {})))
+        updates.append((n, {"status": new_status}))
         log_rows.append({"sent_at": ts, "platform": r.get("platform", ""), "username": r.get("username", ""),
                          "email": email, "send_from": box.address, "subject": subject, "thread_id": thread,
-                         "followup_count": r.get("followup_count", 0), "last_event": "counter_offer",
+                         "followup_count": r.get("followup_count", 0), "last_event": new_status,
                          "last_event_at": ts})
-        print(f"@{handle}: counter-offer sent")
+        print(f"@{handle}: reply sent")
     sheet.update_candidates(updates)
     sheet.append_outreach(log_rows)
     return 0
