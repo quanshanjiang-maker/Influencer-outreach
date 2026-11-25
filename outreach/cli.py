@@ -593,6 +593,59 @@ def cmd_dump_replies(cfg, args) -> int:
     return 0
 
 
+COUNTER_BODY = ("Hi, thank you for your reply. We have a limited budget this time. "
+                "Would {amount} work for you for a quote this time?\n\nBest,\nAmy\nFrevana")
+
+
+def cmd_counter_offer(cfg, args) -> int:
+    """Reply in each creator's existing email thread with a counter-offer for one quote post.
+    Input is a sealed JSON payload {handle: "$30"} so amounts never appear in public logs;
+    prints only handles. Sets status 'countered' and records the offer in our_offer."""
+    import json
+    import random
+    import time
+    from datetime import datetime, timezone
+
+    data = json.loads(_unseal(args.sealed, str(cfg.sheet_id)))
+    sheet = _sheet(cfg)
+    rows = {str(r.get("username", "")).lower(): (n, r) for n, r in sheet.read_candidates()}
+    boxes = {c["address"]: m for c, m in _rotation(cfg, sheet).boxes}
+    templates = sheet.read_templates()
+    subject = "Re: " + (templates.get("default", ("Quick collab question from Frevana", ""))[0]
+                        or "Quick collab question from Frevana")
+    updates, log_rows, first = [], [], True
+    for handle, amount in data.items():
+        hit = rows.get(handle.lower().lstrip("@"))
+        if hit is None:
+            print(f"@{handle}: skipped (not in Candidates)")
+            continue
+        n, r = hit
+        box = boxes.get(str(r.get("send_from")))
+        email, thread = str(r.get("email", "")).strip(), str(r.get("thread_id", ""))
+        if box is None or not email or not thread:
+            print(f"@{handle}: skipped (no original email thread)")
+            continue
+        if not first:
+            time.sleep(random.uniform(20, 40))
+        first = False
+        try:
+            box.send(email, subject, COUNTER_BODY.format(amount=amount), thread_id=thread,
+                     in_reply_to=str(r.get("message_id", "")))
+        except Exception as e:
+            print(f"@{handle}: send failed ({type(e).__name__})")
+            continue
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        updates.append((n, {"status": "countered"} | ({"our_offer": amount} if "our_offer" in r else {})))
+        log_rows.append({"sent_at": ts, "platform": r.get("platform", ""), "username": r.get("username", ""),
+                         "email": email, "send_from": box.address, "subject": subject, "thread_id": thread,
+                         "followup_count": r.get("followup_count", 0), "last_event": "counter_offer",
+                         "last_event_at": ts})
+        print(f"@{handle}: counter-offer sent")
+    sheet.update_candidates(updates)
+    sheet.append_outreach(log_rows)
+    return 0
+
+
 def cmd_set_fields(cfg, args) -> int:
     """Fill Candidates cells from a sealed JSON payload {handle: {column: value}}; prints no values."""
     import json
@@ -722,6 +775,8 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("x-profiles", help="print public X profile stats for handles")
     pr.add_argument("--names", required=True, help="comma list of X handles")
     pr.add_argument("--score", help="also score them under this Criteria row name")
+    co = sub.add_parser("counter-offer", help="reply in-thread with a counter-offer (sealed {handle: amount})")
+    co.add_argument("--sealed", required=True)
     sub.add_parser("dump-replies", help="print reply outcomes as one sealed token (no plain values)")
     sf = sub.add_parser("set-fields", help="fill Candidates cells from a sealed payload")
     sf.add_argument("--sealed", required=True)
@@ -745,7 +800,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "counter-offer": cmd_counter_offer, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

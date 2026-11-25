@@ -35,6 +35,7 @@ on:
           - replies --dry-run
           - replies
           - dump-replies
+          - counter-offer
           - slack digest --dry-run
       extra:
         description: "Extra flags, e.g. --limit 20, or for approve: --min-score 8 --skip youtube:foo (optional)"
