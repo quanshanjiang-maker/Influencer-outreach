@@ -38,6 +38,7 @@ def _creator(a: dict) -> Creator:
         name=a.get("name", "") or "",
         profile_url=a.get("url") or f"https://x.com/{username}",
         followers=int(a.get("followers") or 0),
+        following=int(a.get("following") or 0),
         bio=a.get("description", "") or "",
         location=a.get("location", "") or "",
         website=website,

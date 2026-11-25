@@ -1,7 +1,27 @@
 """Cheap, rule-based filtering before any LLM scoring."""
 from __future__ import annotations
 
+import re
+
 from .models import Creator, Criteria, Post
+
+# Promo-for-hire bios ("DM for collab", "open for paid collaborations"). The user rejected these
+# accounts on 2026-11-25: they read as paid-promo / follow-for-follow accounts, so they are dropped
+# before scoring.
+HIRE_BIO = re.compile(
+    r"\bdm\b[^|\n]{0,15}\b(for|4)\b[^|\n]{0,20}\b(collab|promo|promotion|paid|partnership|sponsor)"
+    r"|\bopen (to|for) (paid )?(collab|promo|partnership)"
+    r"|\bpaid (collab|promo|promotion|partnership)", re.I)
+# Follow-for-follow: following count close to (or above) the follower count.
+F4F_RATIO = 0.8
+
+
+def hire_bio(bio: str) -> bool:
+    return bool(HIRE_BIO.search(bio or ""))
+
+
+def follow_for_follow(c: Creator) -> bool:
+    return c.following > 0 and c.followers >= 1000 and c.following >= c.followers * F4F_RATIO
 
 
 def merge(found: dict[str, Creator], creator: Creator, tweet: Post, query: str) -> None:
@@ -27,6 +47,8 @@ def passes(c: Creator, criteria: Criteria, known: set[str], prefiltered: bool = 
     if criteria.language and c.lang and c.lang != criteria.language:
         return False
     if not prefiltered and c.avg_likes < criteria.min_avg_likes:
+        return False
+    if hire_bio(c.bio) or follow_for_follow(c):
         return False
     return True
 

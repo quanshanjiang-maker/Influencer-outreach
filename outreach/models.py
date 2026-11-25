@@ -53,6 +53,7 @@ class Creator:
     name: str = ""
     profile_url: str = ""
     followers: int = 0
+    following: int = 0          # X: accounts they follow (0 = unknown)
     bio: str = ""
     location: str = ""
     website: str = ""
