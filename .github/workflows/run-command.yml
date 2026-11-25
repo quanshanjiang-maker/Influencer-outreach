@@ -19,6 +19,9 @@ on:
           - emails
           - criteria-import criteria/x-north-america.yaml --only
           - criteria-import criteria/x-competitors.yaml --only
+          - criteria-import criteria/x-ecommerce.yaml
+          - criteria-import criteria/x-ai-news.yaml
+          - criteria-import criteria/x-ai-video-artists.yaml
           - template-import templates/frevana-default.yaml
           - sort-candidates
           - find-candidates

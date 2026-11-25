@@ -1,0 +1,49 @@
+# New direction (2026-11-25): AI news / deals accounts for reach. Only a repost is needed.
+# Load: python -m outreach criteria-import criteria/x-ai-news.yaml
+# Search: python -m outreach search --criteria x-ai-news
+name: x-ai-news
+enabled: true
+platforms: x
+regions: US,CA
+language: en
+keywords: AI news, AI tools, AI deals, Black Friday AI deals, free AI tools
+description: Accounts that post daily AI news, new AI tool roundups, AI deals or free tool lists, with
+  large reach, used as amplifiers that repost our launch tweet.
+min_followers: 10000
+max_followers: 500000
+min_avg_likes: 0
+max_candidates: 150
+since_days: 30
+pages_per_query: 6
+pitch: Frevana, a tool that lets people regenerate videos and images from social media. For our Black
+  Friday launch (Friday, November 27) it is free for a limited time. We pay accounts for a repost of
+  our launch tweet.
+queries:
+  AI deals: ("black friday" OR "cyber monday" OR deal OR deals OR "free for") ("ai tool" OR "ai tools" OR
+    "ai video" OR "ai image") -filter:replies -filter:retweets lang:en min_faves:20
+  AI tool roundup: ("ai tools you" OR "ai tools that" OR "new ai tools" OR "best ai tools" OR "free ai tools")
+    -filter:replies -filter:retweets lang:en min_faves:30
+  AI news: ("ai news" OR "this week in ai" OR "today in ai" OR "biggest ai") -filter:replies -filter:retweets
+    lang:en min_faves:30
+rules: |
+  类型：AI 新闻 / deal 扩散号（只要 Repost）
+
+  一、硬性条件
+  1. 账号主要发 AI 新闻、AI 新工具合集、AI 优惠 / 免费工具，每天或每周固定更新。
+  2. 英语发帖。
+  3. 粉丝 1 万–50 万；近 7 天有发帖；私信开着或有联系方式。
+  4. 一般帖子浏览量约为粉丝 3% 以上（扩散号看总浏览量，不看比例）。
+
+  二、排除
+  - 空投、抽奖、加密币喊单号；评论全是机器人；粉丝暴涨。
+  - 品牌官方号。
+
+  三、注意：接推广不扣分，这类账号本来就是付费转发。
+
+  四、分档（icp_fit）
+  - High：浏览量中位数 ≥ 1 万，内容常提 AI 图片 / 视频工具。
+  - Medium：浏览量 3 千–1 万，或话题偏泛 AI。
+  - Low：浏览量 < 3 千，或数据可疑。
+  五、评论是重点评分项（用户要求）
+  - 看近期帖子的评论数（replies）和评论内容：评论多、有真人在讨论、问工具或链接 → 加分。
+  - 一般帖子评论数中位数很低（大约 3 条以下），或评论全是 "Great post"、emoji、机器人 → 至少降一档，严重的直接 Low。

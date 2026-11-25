@@ -1,0 +1,50 @@
+# New direction (2026-11-25): AI video artists who make their own work. Ask for a quote recommending the model.
+# Load: python -m outreach criteria-import criteria/x-ai-video-artists.yaml
+# Search: python -m outreach search --criteria x-ai-video-artists
+name: x-ai-video-artists
+enabled: true
+platforms: x
+regions: US,CA
+language: en
+keywords: AI video, AI film, AI animation, AI short film, made with AI, AI artist
+description: Creators who make their own AI videos, short films, music videos or animations and post the
+  work with the tools and prompts they used.
+min_followers: 3000
+max_followers: 60000
+min_avg_likes: 0
+max_candidates: 150
+since_days: 30
+pages_per_query: 6
+pitch: Frevana, a tool that lets people regenerate videos and images from social media. For our Black
+  Friday launch (Friday, November 27) it is free for a limited time. We pay creators for a quote repost
+  showing or recommending the model.
+queries:
+  AI short film: ("ai short film" OR "ai film" OR "ai music video" OR "ai animation" OR "ai cinematic") (made
+    OR created OR made with OR workflow) filter:media -filter:replies -filter:retweets lang:en min_faves:20
+  Made with AI video: ("made with" OR "created with" OR "generated with") (kling OR veo OR runway OR hailuo
+    OR seedance OR sora OR pika OR wan) filter:media -filter:replies -filter:retweets lang:en min_faves:20
+  AI video prompt: ("ai video" OR "video prompt") (prompt OR workflow OR "how i made") filter:media
+    -filter:replies -filter:retweets lang:en min_faves:20
+rules: |
+  类型：作品型 AI 视频博主（Quote 并推荐模型）
+
+  一、硬性条件
+  1. 自己做 AI 视频作品（短片、MV、动画、广告片），帖子里是自己的作品，常写用了什么工具、提示词或流程。
+  2. 英语发帖，受众以北美为主（其他英语地区可以，扣一点分）。
+  3. 粉丝 3k–60k；近 7 天有发帖；私信开着或有联系方式。
+  4. 作品帖浏览量约为粉丝 10% 以上。
+
+  二、排除
+  - 只转发别人作品、搬运号、合集号。
+  - 空投、抽奖、互关号；粉丝暴涨。
+  - 品牌官方号、员工。
+
+  三、注意：接推广（CPP、赞助）不扣分，说明会给工具做推荐。
+
+  四、分档（icp_fit）
+  - High：作品质量好、原创为主，浏览量高，评论有人问用什么工具做的。
+  - Medium：有原创作品，但更新少或浏览量一般。
+  - Low：作品少，主要是搬运或广告。
+  五、评论是重点评分项（用户要求）
+  - 看近期帖子的评论数（replies）和评论内容：评论多、有真人在讨论、问工具或链接 → 加分。
+  - 一般帖子评论数中位数很低（大约 3 条以下），或评论全是 "Great post"、emoji、机器人 → 至少降一档，严重的直接 Low。
