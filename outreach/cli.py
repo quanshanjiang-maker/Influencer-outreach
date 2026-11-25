@@ -155,8 +155,11 @@ def cmd_score(cfg, args) -> int:
                 recent = src.recent_posts(str(r["username"]), 20)
                 posts = [post_line(p) for p in recent] or posts
                 if recent:  # engagement on their latest posts, not just the search hits
+                    reps = sorted(p.replies for p in recent)
                     stats[row] = {"avg_views": round(sum(p.views for p in recent) / len(recent)),
-                                  "avg_likes": round(sum(p.likes for p in recent) / len(recent), 1)}
+                                  "avg_likes": round(sum(p.likes for p in recent) / len(recent), 1),
+                                  "avg_replies": round(sum(reps) / len(reps), 1),
+                                  "median_replies": reps[len(reps) // 2]}
             except Exception as e:
                 print(f"  could not fetch posts for @{r['username']}: {e}")
         if str(r.get("competitor_post_text", "")).strip():
