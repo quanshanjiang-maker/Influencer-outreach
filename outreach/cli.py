@@ -289,6 +289,9 @@ def cmd_send(cfg, args) -> int:
         print("Nothing approved to send.")
         return 0
     sc = cfg.sending or {}
+    if args.daily_limit:  # one-off override the user asked for (e.g. send 20 today instead of 15)
+        for box in cfg.mailboxes:
+            box["daily_limit"] = args.daily_limit
     rot = _rotation(cfg, sheet)
     results = send_batch(
         todo, sheet.read_templates(), rot, suppressed(rows),
@@ -672,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
     se = sub.add_parser("send", help="email approved rows")
     se.add_argument("--dry-run", action="store_true", help="print the emails instead of sending")
     se.add_argument("--max", type=int, help="send at most N this run")
+    se.add_argument("--daily-limit", type=int, help="override each mailbox's daily_limit for this run")
     rp = sub.add_parser("replies", help="check sent threads for replies, bounces and follow-ups")
     rp.add_argument("--dry-run", action="store_true")
     ci = sub.add_parser("criteria-import", help="add or update a Criteria row from a YAML file")
