@@ -27,6 +27,12 @@ queries:
     shopify OR dtc OR brand) -filter:replies -filter:retweets lang:en min_faves:5
   TikTok Shop: ("tiktok shop" OR "tiktok ads") (ugc OR creatives OR affiliate) -filter:replies -filter:retweets
     lang:en min_faves:10
+  Ecom store growth: ("shopify store" OR "online store" OR "my store" OR "ecom store") (sales OR revenue OR
+    conversion OR "landing page" OR "product page") -filter:replies -filter:retweets lang:en min_faves:15
+  Product photos AI: ("product photos" OR "product photography" OR "product shots" OR "product images") (ai
+    OR generated OR midjourney OR nano) -filter:replies -filter:retweets lang:en min_faves:10
+  Ad creative testing: ("creative testing" OR "winning ad" OR "winning creative" OR "ad hooks" OR "hook rate")
+    -filter:replies -filter:retweets lang:en min_faves:10
 rules: |
   类型：电商垂直（Quote 推荐）
 

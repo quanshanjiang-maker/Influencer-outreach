@@ -25,6 +25,11 @@ queries:
     OR seedance OR sora OR pika OR wan) filter:media -filter:replies -filter:retweets lang:en min_faves:20
   AI video prompt: ("ai video" OR "video prompt") (prompt OR workflow OR "how i made") filter:media
     -filter:replies -filter:retweets lang:en min_faves:20
+  AI commercial: ("ai commercial" OR "ai ad" OR "spec ad" OR "ai trailer" OR "ai music video") (made OR
+    created OR kling OR veo OR seedance OR runway) filter:media -filter:replies -filter:retweets lang:en
+    min_faves:15
+  Image to video: ("image to video" OR "img2vid" OR "start frame" OR "end frame" OR "frames to video")
+    filter:media -filter:replies -filter:retweets lang:en min_faves:15
 rules: |
   类型：作品型 AI 视频博主（Quote 并推荐模型）
 

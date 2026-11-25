@@ -25,6 +25,10 @@ queries:
     -filter:replies -filter:retweets lang:en min_faves:30
   AI news: ("ai news" OR "this week in ai" OR "today in ai" OR "biggest ai") -filter:replies -filter:retweets
     lang:en min_faves:30
+  This AI tool: ("this ai tool" OR "this new ai" OR "just dropped" OR "just launched") (video OR image OR
+    photo OR edit) -filter:replies -filter:retweets lang:en min_faves:30
+  AI model release: ("released" OR "launches" OR "is now live" OR "now available") (veo OR kling OR sora OR
+    midjourney OR "nano banana" OR seedance OR runway) -filter:replies -filter:retweets lang:en min_faves:30
 rules: |
   类型：AI 新闻 / deal 扩散号（只要 Repost）
 
