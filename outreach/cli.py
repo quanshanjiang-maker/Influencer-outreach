@@ -646,6 +646,35 @@ def cmd_counter_offer(cfg, args) -> int:
     return 0
 
 
+def cmd_dump_threads(cfg, args) -> int:
+    """Print every reply in the email threads of rows with the given statuses as one sealed
+    token {handle: [{date, text}]}, so reply text and prices never appear in a public log."""
+    import json
+
+    want = {s.strip() for s in args.status.split(",") if s.strip()}
+    sheet = _sheet(cfg)
+    boxes = {c["address"]: m for c, m in _rotation(cfg, sheet).boxes}
+    out, checked = {}, 0
+    for _, r in sheet.read_candidates():
+        if str(r.get("status", "")).strip() not in want:
+            continue
+        box, thread = boxes.get(str(r.get("send_from"))), str(r.get("thread_id", ""))
+        if box is None or not thread:
+            continue
+        checked += 1
+        try:
+            got = box.replies(thread)
+        except Exception as e:
+            print(f"  could not read a thread ({type(e).__name__})")
+            continue
+        if got:
+            out[str(r.get("username", ""))] = [{"date": x.date, "bounce": x.is_bounce,
+                                                "text": x.text[:1500]} for x in got]
+    print(f"Checked {checked} threads; {len(out)} have replies.")
+    print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
+    return 0
+
+
 def cmd_set_fields(cfg, args) -> int:
     """Fill Candidates cells from a sealed JSON payload {handle: {column: value}}; prints no values."""
     import json
@@ -775,6 +804,8 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("x-profiles", help="print public X profile stats for handles")
     pr.add_argument("--names", required=True, help="comma list of X handles")
     pr.add_argument("--score", help="also score them under this Criteria row name")
+    dt = sub.add_parser("dump-threads", help="sealed dump of replies in threads of rows with these statuses")
+    dt.add_argument("--status", default="sent,countered,replied")
     co = sub.add_parser("counter-offer", help="reply in-thread with a counter-offer (sealed {handle: amount})")
     co.add_argument("--sealed", required=True)
     sub.add_parser("dump-replies", help="print reply outcomes as one sealed token (no plain values)")
@@ -800,7 +831,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "counter-offer": cmd_counter_offer, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "counter-offer": cmd_counter_offer, "dump-threads": cmd_dump_threads, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
