@@ -380,9 +380,11 @@ class Sheet:
         ws.sort((cols.index(by) + 1, "des"), range=f"{rowcol_to_a1(first, 1)}:{rowcol_to_a1(last, len(cols))}")
         return last - first + 1
 
-    def move_blocked_last(self, first: int, last: int) -> tuple[int, int]:
-        """Within sheet rows first..last, put every row whose status is "blocked" after the
-        others, keeping each group's current order. Returns (kept, blocked)."""
+    def move_blocked_last(self, first: int, last: int, order: list[str] | None = None) -> list[tuple[str, int]]:
+        """Within sheet rows first..last, group rows by status in the given order (default: every
+        status except "blocked", then "blocked"); "*" stands for any status not named. Each group
+        keeps its current order. Returns [(group, rows)] in sheet order."""
+        order = [o.strip().lower() for o in (order or ["*", "blocked"])]
         cols = self._columns("candidates", CANDIDATE_HEADERS)
         ws = self.book.worksheet(self.tabs["candidates"])
         rng = f"{rowcol_to_a1(first, 1)}:{rowcol_to_a1(last, len(cols))}"
@@ -390,10 +392,10 @@ class Sheet:
         values += [[] for _ in range(last - first + 1 - len(values))]
         values = [v + [""] * (len(cols) - len(v)) for v in values]
         i = cols.index("status")
-        blocked = [v for v in values if str(v[i]).strip().lower() == "blocked"]
-        kept = [v for v in values if str(v[i]).strip().lower() != "blocked"]
-        ws.update(range_name=rng, values=kept + blocked, value_input_option="RAW")
-        return len(kept), len(blocked)
+        key = lambda v: str(v[i]).strip().lower() if str(v[i]).strip().lower() in order else "*"
+        groups = [(o, [v for v in values if key(v) == o]) for o in order]
+        ws.update(range_name=rng, values=[v for _, g in groups for v in g], value_input_option="RAW")
+        return [(o, len(g)) for o, g in groups]
 
     # --- columns -------------------------------------------------------
     def _columns(self, key: str, required: list[str]) -> list[str]:
