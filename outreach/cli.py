@@ -208,7 +208,13 @@ def cmd_emails(cfg, args) -> int:
     sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
     from .sheets import PRICE_COLUMNS
 
-    if args.top:
+    if getattr(args, "handles", None):
+        # The user picked these creators by name: look them up whatever their status, unless an
+        # email was already checked.
+        want = {h.strip().lstrip("@").lower() for h in args.handles.split(",") if h.strip()}
+        todo = [(row, r) for row, r in sheet.read_candidates()
+                if str(r.get("username", "")).lower() in want and not str(r.get("email_status", "")).strip()]
+    elif args.top:
         # The user picked "the top N in the sheet" (sorted by score): include rows the scorer
         # rejected, but skip anyone who already quoted a price (already talking in DMs).
         todo = [(row, r) for row, r in sheet.read_candidates()
@@ -409,9 +415,11 @@ def cmd_sort(cfg, args) -> int:
     from collections import Counter
 
     sheet = _sheet(cfg)
-    n = sheet.sort_candidates(args.by)
-    rows = [r for _, r in sheet.read_candidates()]
-    print(f"Sorted {n} rows by {args.by}, highest first (empty at the bottom).")
+    first, last = (int(x) for x in args.rows.split(":")) if args.rows else (None, None)
+    n = sheet.sort_candidates(args.by, first, last)
+    rows = [r for i, r in sheet.read_candidates() if not args.rows or first <= i <= last]
+    where = f"rows {first}-{last}" if args.rows else "all rows"
+    print(f"Sorted {n} rows ({where}) by {args.by}, highest first (empty at the bottom).")
     for name in sorted({str(r.get("criteria", "")) for r in rows}):
         part = [r for r in rows if str(r.get("criteria", "")) == name]
         scores = Counter(str(r.get("score", "")).strip() or "unscored" for r in part)
@@ -810,6 +818,7 @@ def main(argv: list[str] | None = None) -> int:
     em.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
     em.add_argument("--limit", type=int, help="process at most N candidates")
     em.add_argument("--top", type=int, help="the first N rows of Candidates (sorted by score), rejected included")
+    em.add_argument("--handles", help="comma list of handles to look up, any status")
     lc = sub.add_parser("list-candidates", help="print the first rows of Candidates (no emails or prices)")
     lc.add_argument("--top", type=int, default=30)
     ap = sub.add_parser("approve", help="approve ready rows for sending (only changes the sheet)")
@@ -846,6 +855,7 @@ def main(argv: list[str] | None = None) -> int:
     sf.add_argument("--sealed", required=True)
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
     so.add_argument("--by", default="score")
+    so.add_argument("--rows", help="only sort this sheet row range, e.g. 777:1003 (one search batch)")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
     ar.add_argument("--platform", required=True)
     ar.add_argument("--dry-run", action="store_true")

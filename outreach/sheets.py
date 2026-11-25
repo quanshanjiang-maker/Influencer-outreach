@@ -366,15 +366,19 @@ class Sheet:
             self.book.worksheet(self.tabs[key]).batch_update(data, value_input_option="RAW")
         return len(updates)
 
-    def sort_candidates(self, by: str = "score") -> int:
-        """Sort whole data rows by one column, highest first; empty cells go to the bottom."""
+    def sort_candidates(self, by: str = "score", first: int | None = None, last: int | None = None) -> int:
+        """Sort whole data rows by one column, highest first; empty cells go to the bottom.
+        With first/last, only that sheet row range is sorted (one search batch), so the
+        row numbers of other batches stay the same."""
         cols = self._columns("candidates", CANDIDATE_HEADERS)
         ws = self.book.worksheet(self.tabs["candidates"])
         n = len(ws.col_values(1))
-        if n < 3:
-            return max(n - 1, 0)
-        ws.sort((cols.index(by) + 1, "des"), range=f"A2:{rowcol_to_a1(n, len(cols))}")
-        return n - 1
+        first = max(first or 2, 2)
+        last = min(last or n, n)
+        if last - first < 1:
+            return max(last - first + 1, 0)
+        ws.sort((cols.index(by) + 1, "des"), range=f"{rowcol_to_a1(first, 1)}:{rowcol_to_a1(last, len(cols))}")
+        return last - first + 1
 
     # --- columns -------------------------------------------------------
     def _columns(self, key: str, required: list[str]) -> list[str]:
