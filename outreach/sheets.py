@@ -384,7 +384,7 @@ class Sheet:
         """Within sheet rows first..last, group rows by status in the given order (default: every
         status except "blocked", then "blocked"); "*" stands for any status not named. Each group
         keeps its current order. Returns [(group, rows)] in sheet order."""
-        order = [o.strip().lower() for o in (order or ["*", "blocked"])]
+        order = [("*" if o.strip().lower() == "rest" else o.strip().lower()) for o in (order or ["*", "blocked"])]
         if "*" not in order:  # never drop rows whose status isn't named
             order.append("*")
         cols = self._columns("candidates", CANDIDATE_HEADERS)

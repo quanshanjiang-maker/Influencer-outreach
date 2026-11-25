@@ -867,8 +867,8 @@ def main(argv: list[str] | None = None) -> int:
     sf.add_argument("--sealed-file", help="file in the repo holding a sealed token too long for a workflow input")
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
     so.add_argument("--by", default="score")
-    so.add_argument("--group-order", help="with --rows: group rows by status in this order, * = the rest, "
-                    "e.g. no_email,ready,*,blocked")
+    so.add_argument("--group-order", help="with --rows: group rows by status in this order, * or rest = the rest, "
+                    "e.g. no_email,ready,rest,blocked")
     so.add_argument("--blocked-last", action="store_true", help="with --rows: only move blocked rows to the bottom")
     so.add_argument("--rows", help="only sort this sheet row range, e.g. 777:1003 (one search batch)")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
