@@ -38,6 +38,7 @@ on:
           - replies --dry-run
           - replies
           - dump-replies
+          - dump-shortlist
           - counter-offer
           - dump-threads
           - slack digest --dry-run

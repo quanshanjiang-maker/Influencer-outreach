@@ -596,6 +596,30 @@ def cmd_dump_replies(cfg, args) -> int:
     return 0
 
 
+def cmd_dump_shortlist(cfg, args) -> int:
+    """Print scored rows of the given criteria (score >= --min-score) with profile stats, bio and
+    score reason as one sealed token, for building the shortlist without plain values in the log."""
+    import json
+
+    want = {c.strip() for c in args.criteria.split(",") if c.strip()}
+    cols = ["criteria", "profile_url", "followers", "bio", "score", "score_reason", "icp_fit", "location",
+            "avg_views", "avg_likes", "avg_replies", "median_replies", "email_status", "status", "dm_open",
+            "account_created"]
+    out = {}
+    for _, r in _sheet(cfg).read_candidates():
+        if want and str(r.get("criteria", "")).strip() not in want:
+            continue
+        try:
+            sc = float(str(r.get("score", "")).strip() or -1)
+        except ValueError:
+            continue
+        if sc >= args.min_score:
+            out[str(r.get("username", ""))] = {k: str(r.get(k, "")) for k in cols}
+    print(f"{len(out)} rows on the shortlist.")
+    print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
+    return 0
+
+
 COUNTER_BODY = ("Hi, thank you for your reply. We have a limited budget this time. "
                 "Would {amount} work for you for a quote this time?\n\nBest,\nAmy\nFrevana")
 
@@ -814,6 +838,9 @@ def main(argv: list[str] | None = None) -> int:
     dt.add_argument("--status", default="sent,countered,replied")
     co = sub.add_parser("counter-offer", help="reply in-thread with a counter-offer (sealed {handle: amount})")
     co.add_argument("--sealed", required=True)
+    ds = sub.add_parser("dump-shortlist", help="print scored rows of some criteria as one sealed token")
+    ds.add_argument("--criteria", default="")
+    ds.add_argument("--min-score", type=float, default=7)
     sub.add_parser("dump-replies", help="print reply outcomes as one sealed token (no plain values)")
     sf = sub.add_parser("set-fields", help="fill Candidates cells from a sealed payload")
     sf.add_argument("--sealed", required=True)
@@ -837,7 +864,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "counter-offer": cmd_counter_offer, "dump-threads": cmd_dump_threads, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "dump-shortlist": cmd_dump_shortlist, "counter-offer": cmd_counter_offer, "dump-threads": cmd_dump_threads, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
