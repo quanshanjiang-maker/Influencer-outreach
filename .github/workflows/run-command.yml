@@ -23,6 +23,7 @@ on:
           - criteria-import criteria/x-ai-news.yaml
           - criteria-import criteria/x-ai-video-artists.yaml
           - template-import templates/frevana-default.yaml
+          - template-import templates/frevana-interview.yaml
           - sort-candidates
           - find-candidates
           - list-candidates
