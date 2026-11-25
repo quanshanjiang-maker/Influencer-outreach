@@ -1,5 +1,4 @@
-# First email plus an interview invite. Fill both TODOs before importing; send skips any
-# template that still contains TODO.
+# First email plus an interview invite (user approved 2026-11-25).
 name: interview
 subject: "Frevana x {name}"
 body: |
@@ -15,7 +14,7 @@ body: |
 
   We're launching this Friday, November 27, so a quick reply would mean a lot.
 
-  One more thing: we're talking with a few standout creators like you to learn how you create and what tools you rely on. Would you be open to a short 15-minute interview? As a thank-you, TODO_BENEFIT. You can pick a time that works for you here: TODO_LINK
+  One more thing: we're talking with a few standout creators like you to learn how you create and what tools you rely on. Would you be open to a short interview call? As a thank-you, we'd love to explore more collaboration opportunities with you. You can pick a time that works for you here: https://calendly.com/amy-frevana/30min
 
   Thank you so much!
 

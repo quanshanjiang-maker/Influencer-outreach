@@ -294,6 +294,8 @@ def cmd_send(cfg, args) -> int:
     sheet = _sheet(cfg)
     rows = sheet.read_candidates()
     todo = [(row, r) for row, r in rows if str(r.get("status", "")).strip() in SENDABLE_STATUSES]
+    if args.template:  # e.g. send the interview-invite rows first
+        todo = [(row, r) for row, r in todo if (str(r.get("template", "")).strip() or "default") == args.template]
     if not todo:
         print("Nothing approved to send.")
         return 0
@@ -891,6 +893,7 @@ def main(argv: list[str] | None = None) -> int:
     se = sub.add_parser("send", help="email approved rows")
     se.add_argument("--dry-run", action="store_true", help="print the emails instead of sending")
     se.add_argument("--max", type=int, help="send at most N this run")
+    se.add_argument("--template", help="only send rows that use this template (default = no template set)")
     se.add_argument("--daily-limit", type=int, help="override each mailbox's daily_limit for this run")
     rp = sub.add_parser("replies", help="check sent threads for replies, bounces and follow-ups")
     rp.add_argument("--dry-run", action="store_true")
