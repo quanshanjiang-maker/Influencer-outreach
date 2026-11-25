@@ -22,6 +22,7 @@ on:
           - template-import templates/frevana-default.yaml
           - sort-candidates
           - find-candidates
+          - list-candidates
           - x-profiles
           - set-fields
           - archive-candidates --platform youtube --dry-run
@@ -30,6 +31,7 @@ on:
           - approve
           - test-email
           - send --dry-run
+          - send
           - replies --dry-run
           - slack digest --dry-run
       extra:

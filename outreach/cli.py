@@ -203,8 +203,18 @@ def cmd_emails(cfg, args) -> int:
     from .sheets import Sheet
 
     sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
-    todo = [(row, r) for row, r in sheet.read_candidates()
-            if str(r.get("status", "")).strip() == "scored" and not str(r.get("email_status", "")).strip()]
+    from .sheets import PRICE_COLUMNS
+
+    if args.top:
+        # The user picked "the top N in the sheet" (sorted by score): include rows the scorer
+        # rejected, but skip anyone who already quoted a price (already talking in DMs).
+        todo = [(row, r) for row, r in sheet.read_candidates()
+                if str(r.get("status", "")).strip() in ("scored", "rejected")
+                and not any(str(r.get(c, "")).strip() for c in PRICE_COLUMNS)][: args.top]
+        todo = [(row, r) for row, r in todo if not str(r.get("email_status", "")).strip()]
+    else:
+        todo = [(row, r) for row, r in sheet.read_candidates()
+                if str(r.get("status", "")).strip() == "scored" and not str(r.get("email_status", "")).strip()]
     todo = todo[: args.limit] if args.limit else todo
     if not todo:
         print("No scored candidates waiting for an email.")
@@ -418,6 +428,18 @@ def cmd_find(cfg, args) -> int:
         for n, r in hits[:5]:
             print(f"{want}: {'match' if exact else 'partial'} row {n} @{r.get('username')} "
                   f"({r.get('platform')}, {r.get('criteria')}, status {r.get('status')})")
+    return 0
+
+
+def cmd_list(cfg, args) -> int:
+    """Print the first N Candidates rows in sheet order: handle, score, fit, status, email status,
+    and whether a price is filled. Emails and prices themselves are not printed (logs are public)."""
+    from .sheets import PRICE_COLUMNS
+
+    for n, r in _sheet(cfg).read_candidates()[: args.top]:
+        quoted = "quoted" if any(str(r.get(c, "")).strip() for c in PRICE_COLUMNS) else "-"
+        print(f"row {n}\t@{r.get('username')}\tscore {r.get('score') or '-'}\t{r.get('icp_fit') or '-'}\t"
+              f"{r.get('status') or '-'}\temail {r.get('email_status') or '-'}\t{quoted}\t{r.get('criteria')}")
     return 0
 
 
@@ -638,6 +660,9 @@ def main(argv: list[str] | None = None) -> int:
     em = sub.add_parser("emails", help="find and verify emails for scored candidates")
     em.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
     em.add_argument("--limit", type=int, help="process at most N candidates")
+    em.add_argument("--top", type=int, help="the first N rows of Candidates (sorted by score), rejected included")
+    lc = sub.add_parser("list-candidates", help="print the first rows of Candidates (no emails or prices)")
+    lc.add_argument("--top", type=int, default=30)
     ap = sub.add_parser("approve", help="approve ready rows for sending (only changes the sheet)")
     ap.add_argument("--handles", help="comma list: alice,@bob,youtube:carol")
     ap.add_argument("--min-score", type=int, help="approve every ready row with score >= N")
@@ -681,7 +706,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
