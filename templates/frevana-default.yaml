@@ -2,7 +2,7 @@
 #   python -m outreach template-import templates/frevana-default.yaml
 # {name} is filled with the creator's display name (or handle if it has none).
 name: default
-subject: "Frevana x {name}: Black Friday launch"
+subject: "Frevana x {name}"
 body: |
   Hi {name},
 
