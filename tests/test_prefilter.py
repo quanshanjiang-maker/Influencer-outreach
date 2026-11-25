@@ -18,3 +18,13 @@ def test_passes_drops_hire_bio_and_follow_for_follow():
     assert not passes(Creator(username="c", followers=10000, following=9000, bio="AI filmmaker"), crit, set())
     assert passes(Creator(username="d", followers=10000, following=0, bio="AI filmmaker"), crit, set())
     assert not passes(Creator(username="e", followers=10000, bio="AI filmmaker", location="DM for collab"), crit, set())
+
+
+def test_generic_ai_curator():
+    from outreach.prefilter import generic_ai
+    from outreach.models import Creator
+    mk = lambda b: Creator(platform="x", username="u", bio=b)
+    assert generic_ai(mk("Future With Al | Sharing latest AI tools"))
+    assert generic_ai(mk("Helping you to make money with AI"))
+    assert not generic_ai(mk("Scaling fashion stores behind the scenes"))
+    assert not generic_ai(mk("Writer Director Showrunner | ElevenLabs Ambassador"))
