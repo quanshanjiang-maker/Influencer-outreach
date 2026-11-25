@@ -721,16 +721,18 @@ def cmd_set_fields(cfg, args) -> int:
 
     data = json.loads(_unseal(args.sealed, str(cfg.sheet_id)))
     sheet = _sheet(cfg)
-    rows = {str(r.get("username", "")).lower(): n for n, r in sheet.read_candidates()}
+    rows: dict[str, list[int]] = {}
+    for n, r in sheet.read_candidates():  # a handle can sit in more than one row (two searches)
+        rows.setdefault(str(r.get("username", "")).lower(), []).append(n)
     updates = []
     for handle, changes in data.items():
         bad = [c for c in changes if c not in CANDIDATE_HEADERS]
-        n = rows.get(handle.lower().lstrip("@"))
-        if bad or n is None:
+        ns = rows.get(handle.lower().lstrip("@"))
+        if bad or not ns:
             print(f"@{handle}: skipped ({'unknown columns ' + str(bad) if bad else 'not in Candidates'})")
             continue
-        updates.append((n, changes))
-        print(f"@{handle}: updated {', '.join(changes)} (row {n})")
+        updates += [(n, changes) for n in ns]
+        print(f"@{handle}: updated {', '.join(changes)} (rows {', '.join(map(str, ns))})")
     sheet.update_candidates(updates)
     return 0
 
