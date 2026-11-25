@@ -8,16 +8,22 @@ from .models import Creator, Criteria, Post
 # Promo-for-hire bios ("DM for collab", "open for paid collaborations"). The user rejected these
 # accounts on 2026-11-25: they read as paid-promo / follow-for-follow accounts, so they are dropped
 # before scoring.
-HIRE_BIO = re.compile(
-    r"\bdm\b[^|\n]{0,15}\b(for|4)\b[^|\n]{0,20}\b(collab|promo|promotion|paid|partnership|sponsor)"
-    r"|\bopen (to|for) (paid )?(collab|promo|partnership)"
-    r"|\bpaid (collab|promo|promotion|partnership)", re.I)
+HIRE_BIO = re.compile(r"collab|promo(s|tion|tions)?\b|sponsor|paid partner|brand deal", re.I)
 # Follow-for-follow: following count close to (or above) the follower count.
 F4F_RATIO = 0.8
 
 
+# Small-caps letters some bios use ("ᴄᴏʟʟᴀʙ") so the pattern still matches them.
+_SMALL_CAPS = str.maketrans("ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘʀꜱᴛᴜᴠᴡʏᴢ", "abcdefghijklmnoprstuvwyz")
+
+
 def hire_bio(bio: str) -> bool:
-    return bool(HIRE_BIO.search(bio or ""))
+    return bool(HIRE_BIO.search((bio or "").translate(_SMALL_CAPS)))
+
+
+def for_hire(c: Creator) -> bool:
+    """Bio or location advertises paid collabs / promos (people put "DM for collab" in either)."""
+    return hire_bio(c.bio) or hire_bio(c.location)
 
 
 def follow_for_follow(c: Creator) -> bool:
@@ -48,7 +54,7 @@ def passes(c: Creator, criteria: Criteria, known: set[str], prefiltered: bool = 
         return False
     if not prefiltered and c.avg_likes < criteria.min_avg_likes:
         return False
-    if hire_bio(c.bio) or follow_for_follow(c):
+    if for_hire(c) or follow_for_follow(c):
         return False
     return True
 
