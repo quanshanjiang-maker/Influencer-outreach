@@ -559,6 +559,40 @@ def _unseal(token: str, secret: str) -> bytes:
     return bytes(a ^ b for a, b in zip(body, stream))
 
 
+def _seal(data: bytes, secret: str) -> str:
+    """Inverse of _unseal: encrypt private values so they can be printed in a public log."""
+    import base64
+    import hashlib
+    import hmac
+    import os
+
+    key = hashlib.sha256(("outreach-seal:" + secret).encode()).digest()
+    nonce = os.urandom(16)
+    stream = b"".join(hmac.new(key, nonce + i.to_bytes(4, "big"), hashlib.sha256).digest()
+                      for i in range(len(data) // 32 + 1))
+    body = bytes(a ^ b for a, b in zip(data, stream))
+    tag = hmac.new(key, nonce + body, hashlib.sha256).digest()[:16]
+    return base64.urlsafe_b64encode(nonce + tag + body).decode().rstrip("=")
+
+
+def cmd_dump_replies(cfg, args) -> int:
+    """Print the reply outcome of every row that has one (status, category, summary, prices)
+    as one sealed token, so the values never appear in plain text in a public log."""
+    import json
+
+    from .sheets import PRICE_COLUMNS
+
+    keep = {"replied", "unsubscribed", "bounced", "followup_due"}
+    out = {}
+    for _, r in _sheet(cfg).read_candidates():
+        if str(r.get("status", "")).strip() in keep or str(r.get("reply_category", "")).strip():
+            out[str(r.get("username", ""))] = {k: str(r.get(k, "")) for k in
+                                               ["status", "reply_category", "reply_summary", *PRICE_COLUMNS]}
+    print(f"{len(out)} rows with a reply outcome.")
+    print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
+    return 0
+
+
 def cmd_set_fields(cfg, args) -> int:
     """Fill Candidates cells from a sealed JSON payload {handle: {column: value}}; prints no values."""
     import json
@@ -688,6 +722,7 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("x-profiles", help="print public X profile stats for handles")
     pr.add_argument("--names", required=True, help="comma list of X handles")
     pr.add_argument("--score", help="also score them under this Criteria row name")
+    sub.add_parser("dump-replies", help="print reply outcomes as one sealed token (no plain values)")
     sf = sub.add_parser("set-fields", help="fill Candidates cells from a sealed payload")
     sf.add_argument("--sealed", required=True)
     so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
@@ -710,7 +745,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
