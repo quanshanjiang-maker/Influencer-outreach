@@ -465,6 +465,9 @@ def cmd_profiles(cfg, args) -> int:
               f"median views {int(median(views))} | avg views {int(sum(views) / len(views))} | "
               f"last post {posts[0].created_at if posts else '-'}")
         pv = [int(t.get("viewCount") or 0) for t in promos]
+        nv = [int(t.get("viewCount") or 0) for t in raw if t not in promos]
+        print(f"    normal (non-promo) posts {len(nv)} | median normal views "
+              f"{int(median(nv)) if nv else '-'}")
         print(f"    promo/quote posts {len(promos)} (quotes {len(quotes)}) | median promo views "
               f"{int(median(pv)) if pv else '-'} | last quote views "
               f"{int(last_q.get('viewCount') or 0) if last_q else '-'} "
