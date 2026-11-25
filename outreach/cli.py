@@ -470,6 +470,7 @@ def cmd_profiles(cfg, args) -> int:
               f"{int(last_q.get('viewCount') or 0) if last_q else '-'} "
               f"({last_q.get('createdAt', '') if last_q else ''}) | tagged/quoted {', '.join(brands[:12]) or '-'}")
         print(f"    website {c.website or '-'} | bio: {c.bio[:200]!r}")
+        print("    " + _audience_quality(src, c, posts))
         if crit:
             a = assess(client, cfg.models.get("scoring", "claude-haiku-5-5"), ScoreInput(
                 row=0, platform="x", username=c.username, followers=c.followers, bio=c.bio,
@@ -479,6 +480,38 @@ def cmd_profiles(cfg, args) -> int:
             if a:
                 print(f"    score {a.score} | icp_fit {a.icp_fit} | {a.reason}")
     return 0
+
+
+def _audience_quality(src, c, posts) -> str:
+    """One line on follower quality: reach (views/followers), engagement per view and per follower,
+    follower/following ratio, and red flags that often mean bought or inactive followers."""
+    from statistics import median
+
+    try:
+        u = (src._get("/twitter/user/info", {"userName": c.username}).get("data") or {})
+    except Exception:
+        u = {}
+    following = int(u.get("following") or 0)
+    statuses = int(u.get("statusesCount") or 0)
+    f = max(c.followers, 1)
+    mv = median([p.views for p in posts]) if posts else 0
+    ml = median([p.likes for p in posts]) if posts else 0
+    eng = [(p.likes + p.retweets + p.replies) / p.views for p in posts if p.views]
+    er = median(eng) * 100 if eng else 0.0
+    reach = mv / f * 100
+    flags = []
+    if posts and reach < 2:
+        flags.append("reach<2% (possible inactive/bought followers)")
+    if eng and er < 0.5:
+        flags.append("engagement<0.5% of views")
+    if c.followers >= 10000 and following > c.followers * 0.8:
+        flags.append("follow-for-follow pattern")
+    if posts and ml / f * 100 < 0.05:
+        flags.append("likes<0.05% of followers")
+    return (f"audience: following {following} | follower/following {c.followers / max(following, 1):.1f} | "
+            f"total posts {statuses} | blue {u.get('isBlueVerified', '-')} | views/followers {reach:.1f}% | "
+            f"median likes {int(ml)} | likes/followers {ml / f * 100:.2f}% | engagement/views {er:.2f}% | "
+            f"flags {', '.join(flags) or 'none'}")
 
 
 def _unseal(token: str, secret: str) -> bytes:
