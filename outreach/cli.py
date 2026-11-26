@@ -495,8 +495,17 @@ def cmd_profiles(cfg, args) -> int:
         if c is None:
             print(f"{want}: no such X handle")
             continue
-        data = src._get("/twitter/user/last_tweets", {"userName": c.username})
-        all_tw = data.get("tweets") or (data.get("data") or {}).get("tweets") or []
+        all_tw, cursor = [], ""
+        for _page in range(6):  # page further back when recent tweets are mostly retweets
+            params = {"userName": c.username}
+            if cursor:
+                params["cursor"] = cursor
+            data = src._get("/twitter/user/last_tweets", params)
+            all_tw += data.get("tweets") or (data.get("data") or {}).get("tweets") or []
+            originals = sum(1 for t in all_tw if not t.get("retweeted_tweet"))
+            cursor = data.get("next_cursor") or (data.get("data") or {}).get("next_cursor") or ""
+            if originals >= 10 or not cursor or not data.get("has_next_page", True):
+                break
         raw = [t for t in all_tw if not t.get("retweeted_tweet")][:40]
         if not raw:
             n_rt = sum(1 for t in all_tw if t.get("retweeted_tweet"))
