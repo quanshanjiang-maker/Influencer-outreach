@@ -24,6 +24,7 @@ on:
           - criteria-import criteria/x-ai-video-artists.yaml
           - template-import templates/frevana-default.yaml
           - template-import templates/frevana-interview.yaml
+          - criteria-import criteria/x-cross-platform.yaml
           - sort-candidates
           - find-candidates
           - list-candidates
