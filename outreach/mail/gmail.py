@@ -78,8 +78,12 @@ class GmailMailbox(Mailbox):
         """Replies in a thread. full=True reads the whole plain-text body (not the ~200-char snippet)."""
         out = []
         if full:
-            r = requests.get(f"{API}/threads/{thread_id}", headers=self._auth(), timeout=20,
-                             params={"format": "full"})
+            for wait in (0, 2, 5, 10, 20):  # Gmail rate-limits quick bursts of full reads (403/429)
+                time.sleep(wait)
+                r = requests.get(f"{API}/threads/{thread_id}", headers=self._auth(), timeout=20,
+                                 params={"format": "full"})
+                if r.status_code not in (403, 429):
+                    break
             r.raise_for_status()
             messages = r.json().get("messages", [])
         else:
