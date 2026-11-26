@@ -12,6 +12,7 @@ from ._apify import run_actor
 from .base import Source
 
 ACTOR = "apify~instagram-scraper"
+HASHTAG_ACTOR = "apify~instagram-hashtag-scraper"
 
 
 class ApifyInstagramSource(Source):
@@ -25,13 +26,22 @@ class ApifyInstagramSource(Source):
 
     def search(self, query: str, max_pages: int) -> Iterator[tuple[Creator, Post]]:
         term = query.strip()
-        items = run_actor(self.token, ACTOR, {
-            "search": term,
-            "searchType": "hashtag",
-            "searchLimit": 1 if term.startswith("#") else 3,
-            "resultsType": "posts",
-            "resultsLimit": self.posts_per_page * max_pages,
-        })
+        if term.startswith("#"):
+            # The general scraper's hashtag "search" returns hashtag pages, not posts;
+            # the hashtag scraper returns the posts themselves.
+            items = run_actor(self.token, HASHTAG_ACTOR, {
+                "hashtags": [term.lstrip("#")],
+                "resultsType": "posts",
+                "resultsLimit": self.posts_per_page * max_pages,
+            })
+        else:
+            items = run_actor(self.token, ACTOR, {
+                "search": term,
+                "searchType": "hashtag",
+                "searchLimit": 3,
+                "resultsType": "posts",
+                "resultsLimit": self.posts_per_page * max_pages,
+            })
         for it in items:
             user = it.get("ownerUsername")
             if not user:
