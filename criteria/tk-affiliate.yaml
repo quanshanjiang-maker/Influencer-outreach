@@ -1,0 +1,31 @@
+# 2026-11-26: small TikTok Shop affiliate creators (带货主播), user asked for 10 with email.
+# Load: python -m outreach criteria-import criteria/tk-affiliate.yaml
+# Search: python -m outreach search --criteria tk-affiliate
+name: tk-affiliate
+enabled: true
+platforms: tiktok
+regions: US
+language: en
+keywords: TikTok Shop affiliate, TikTok made me buy it, product review, Amazon finds
+description: Small US TikTok creators who sell products through TikTok Shop affiliate links (product
+  demos, hauls, "TikTok made me buy it"), with an email in their bio.
+min_followers: 3000
+max_followers: 100000
+min_avg_likes: 0
+max_candidates: 150
+since_days: 30
+pages_per_query: 3
+pitch: Frevana, a tool that lets people regenerate videos and images from social media. For our Black
+  Friday launch (Friday, November 27) it is free for a limited time. We'd love a short 10-minute interview
+  ($50 Frevana gift card as thanks) and a paid collaboration.
+queries:
+  TikTok Shop affiliate: "#tiktokshopaffiliate"
+  TikTok Shop creator: "#tiktokshopcreator"
+  TikTok made me buy it: "#tiktokmademebuyit"
+  TikTok Shop finds: "#tiktokshopfinds"
+  Black Friday TikTok Shop: "#tiktokshopblackfriday"
+rules: |
+  新人群（11-26）：TikTok Shop 联盟带货 (affiliate) 的小博主。
+  要：北美真人、3k–100k 粉丝、视频是在讲/展示具体商品（开箱、测评、好物推荐），bio 或视频里有 TikTok Shop / showcase / affiliate 链接，bio 有邮箱。
+  这批不排除 bio 写 collab/PR/business inquiries 的人（带货博主本来就接合作）。
+  排除：品牌官方号、店铺号、MCN/代理号、搬运号、非英语、近 30 天没发视频。
