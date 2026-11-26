@@ -763,7 +763,8 @@ def cmd_dump_threads(cfg, args) -> int:
             continue
         checked += 1
         try:
-            got = box.replies(thread)
+            got = (box.replies(thread, full=True) if "full" in box.replies.__code__.co_varnames
+                   else box.replies(thread))  # whole reply text, not the Gmail snippet
         except Exception as e:
             print(f"  could not read a thread ({type(e).__name__})")
             continue
