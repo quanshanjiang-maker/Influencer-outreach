@@ -752,25 +752,34 @@ def cmd_dump_threads(cfg, args) -> int:
     token {handle: [{date, text}]}, so reply text and prices never appear in a public log."""
     import json
 
-    want = {s.strip() for s in args.status.split(",") if s.strip()}
+    want = {s.strip() for s in (args.status or "").split(",") if s.strip()}
+    handles = ({h.strip().lstrip("@").lower() for h in args.handles.split(",") if h.strip()}
+               if getattr(args, "handles", None) else None)
+    sent = bool(getattr(args, "include_sent", False))
     sheet = _sheet(cfg)
     boxes = {c["address"]: m for c, m in _rotation(cfg, sheet).boxes}
     out, checked = {}, 0
     for _, r in sheet.read_candidates():
-        if str(r.get("status", "")).strip() not in want:
+        if handles is not None:
+            if str(r.get("username", "")).lower() not in handles:
+                continue
+        elif str(r.get("status", "")).strip() not in want:
             continue
         box, thread = boxes.get(str(r.get("send_from"))), str(r.get("thread_id", ""))
         if box is None or not thread:
             continue
         checked += 1
         try:
-            got = (box.replies(thread, full=True) if "full" in box.replies.__code__.co_varnames
-                   else box.replies(thread))  # whole reply text, not the Gmail snippet
+            if sent:
+                got = box.replies(thread, full=True, include_sent=True)
+            else:
+                got = (box.replies(thread, full=True) if "full" in box.replies.__code__.co_varnames
+                       else box.replies(thread))  # whole reply text, not the Gmail snippet
         except Exception as e:
             print(f"  could not read a thread ({type(e).__name__})")
             continue
         if got:
-            out[str(r.get("username", ""))] = [{"date": x.date, "bounce": x.is_bounce,
+            out[str(r.get("username", ""))] = [{"date": x.date, "bounce": x.is_bounce, "from": x.sender if sent else "",
                                                 "text": x.text[:1500]} for x in got]
     print(f"Checked {checked} threads; {len(out)} have replies.")
     print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
@@ -913,6 +922,8 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--score", help="also score them under this Criteria row name")
     dt = sub.add_parser("dump-threads", help="sealed dump of replies in threads of rows with these statuses")
     dt.add_argument("--status", default="sent,countered,replied")
+    dt.add_argument("--handles", help="comma list of handles instead of --status")
+    dt.add_argument("--include-sent", action="store_true", help="also dump our own messages in each thread")
     co = sub.add_parser("counter-offer", help="reply in-thread with a counter-offer (sealed {handle: amount})")
     co.add_argument("--sealed")
     co.add_argument("--sealed-file", help="file in the repo holding a sealed token too long for a workflow input")

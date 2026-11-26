@@ -74,8 +74,9 @@ class GmailMailbox(Mailbox):
                 return got
         return ""
 
-    def replies(self, thread_id: str, full: bool = False) -> list[Reply]:
-        """Replies in a thread. full=True reads the whole plain-text body (not the ~200-char snippet)."""
+    def replies(self, thread_id: str, full: bool = False, include_sent: bool = False) -> list[Reply]:
+        """Replies in a thread. full=True reads the whole plain-text body (not the ~200-char snippet).
+        include_sent=True also returns our own messages (sender is our address)."""
         out = []
         if full:
             for wait in (0, 2, 5, 10, 20):  # Gmail rate-limits quick bursts of full reads (403/429)
@@ -91,11 +92,12 @@ class GmailMailbox(Mailbox):
         for m in messages:
             h = self._headers(m)
             sender = h.get("from", "")
-            if self.address.lower() in sender.lower() or "SENT" in m.get("labelIds", []):
+            mine = self.address.lower() in sender.lower() or "SENT" in m.get("labelIds", [])
+            if mine and not include_sent:
                 continue
             text = (self._plain(m.get("payload", {})) if full else "") or m.get("snippet", "")
-            out.append(Reply(sender=sender, date=h.get("date", ""), text=text,
-                             is_bounce=self.looks_like_bounce(sender, h.get("subject", ""))))
+            out.append(Reply(sender="me" if mine else sender, date=h.get("date", ""), text=text,
+                             is_bounce=False if mine else self.looks_like_bounce(sender, h.get("subject", ""))))
         return out
 
 
