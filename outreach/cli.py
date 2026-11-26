@@ -702,7 +702,8 @@ def cmd_counter_offer(cfg, args) -> int:
     import time
     from datetime import datetime, timezone
 
-    data = json.loads(_unseal(args.sealed, str(cfg.sheet_id)))
+    token = open(args.sealed_file).read().strip() if args.sealed_file else args.sealed
+    data = json.loads(_unseal(token, str(cfg.sheet_id)))
     sheet = _sheet(cfg)
     rows = {str(r.get("username", "")).lower(): (n, r) for n, r in sheet.read_candidates()}
     boxes = {c["address"]: m for c, m in _rotation(cfg, sheet).boxes}
@@ -913,7 +914,8 @@ def main(argv: list[str] | None = None) -> int:
     dt = sub.add_parser("dump-threads", help="sealed dump of replies in threads of rows with these statuses")
     dt.add_argument("--status", default="sent,countered,replied")
     co = sub.add_parser("counter-offer", help="reply in-thread with a counter-offer (sealed {handle: amount})")
-    co.add_argument("--sealed", required=True)
+    co.add_argument("--sealed")
+    co.add_argument("--sealed-file", help="file in the repo holding a sealed token too long for a workflow input")
     so2 = sub.add_parser("socials", help="find TikTok / Instagram links for handles (sealed output)")
     so2.add_argument("--handles", required=True)
     ds = sub.add_parser("dump-shortlist", help="print scored rows of some criteria as one sealed token")
