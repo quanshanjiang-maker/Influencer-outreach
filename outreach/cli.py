@@ -496,8 +496,11 @@ def cmd_profiles(cfg, args) -> int:
             print(f"{want}: no such X handle")
             continue
         data = src._get("/twitter/user/last_tweets", {"userName": c.username})
-        raw = [t for t in (data.get("tweets") or (data.get("data") or {}).get("tweets") or [])
-               if not t.get("retweeted_tweet")][:40]
+        all_tw = data.get("tweets") or (data.get("data") or {}).get("tweets") or []
+        raw = [t for t in all_tw if not t.get("retweeted_tweet")][:40]
+        if not raw:
+            n_rt = sum(1 for t in all_tw if t.get("retweeted_tweet"))
+            print(f"{c.username}: API returned {len(all_tw)} recent tweets, {n_rt} of them retweets")
         posts = [_tweet(t) for t in raw]
         views = [p.views for p in posts] or [0]
         quotes = [t for t in raw if t.get("quoted_tweet")]
