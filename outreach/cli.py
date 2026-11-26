@@ -707,8 +707,9 @@ def cmd_counter_offer(cfg, args) -> int:
     rows = {str(r.get("username", "")).lower(): (n, r) for n, r in sheet.read_candidates()}
     boxes = {c["address"]: m for c, m in _rotation(cfg, sheet).boxes}
     templates = sheet.read_templates()
-    subject = "Re: " + (templates.get("default", ("Quick collab question from Frevana", ""))[0]
-                        or "Quick collab question from Frevana")
+    from .send import render
+    subject_tpl = (templates.get("default", ("Quick collab question from Frevana", ""))[0]
+                   or "Quick collab question from Frevana")
     updates, log_rows, first = [], [], True
     for handle, amount in data.items():
         hit = rows.get(handle.lower().lstrip("@"))
@@ -721,6 +722,7 @@ def cmd_counter_offer(cfg, args) -> int:
         if box is None or not email or not thread:
             print(f"@{handle}: skipped (no original email thread)")
             continue
+        subject = "Re: " + render((subject_tpl, ""), r)[0]  # fill {name} like the first email
         if not first:
             time.sleep(random.uniform(20, 40))
         first = False
