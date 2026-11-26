@@ -531,6 +531,25 @@ def cmd_profiles(cfg, args) -> int:
               f"{int(last_q.get('viewCount') or 0) if last_q else '-'} "
               f"({last_q.get('createdAt', '') if last_q else ''}) | tagged/quoted {', '.join(brands[:12]) or '-'}")
         print(f"    website {c.website or '-'} | bio: {c.bio[:200]!r}")
+        try:  # who this account replies to, retweets, quotes and mentions (spots engagement pods)
+            rep = src._get("/twitter/user/last_tweets", {"userName": c.username, "includeReplies": "true"})
+            rep_tw = rep.get("tweets") or (rep.get("data") or {}).get("tweets") or []
+            from collections import Counter
+            links = Counter()
+            for t in all_tw + rep_tw:
+                for kind, who in (("reply", t.get("inReplyToUsername")),
+                                  ("rt", ((t.get("retweeted_tweet") or {}).get("author") or {}).get("userName")),
+                                  ("quote", ((t.get("quoted_tweet") or {}).get("author") or {}).get("userName"))):
+                    if who and who.lower() != c.username.lower():
+                        links[f"{kind}:{who}"] += 1
+                for m in ((t.get("entities") or {}).get("user_mentions") or []):
+                    who = m.get("screen_name") or m.get("username")
+                    if who and who.lower() != c.username.lower():
+                        links[f"mention:{who}"] += 1
+            print("    interacts: " + ", ".join(f"{k}x{v}" for k, v in links.most_common(40)))
+        except Exception as e:  # noqa: BLE001
+            print(f"    interacts: lookup failed ({e})")
+
         print("    " + _audience_quality(src, c, posts))
         if crit:
             a = assess(client, cfg.models.get("scoring", "claude-haiku-5-5"), ScoreInput(
