@@ -25,6 +25,7 @@ on:
           - template-import templates/frevana-default.yaml
           - template-import templates/frevana-interview.yaml
           - template-import templates/frevana-affiliate.yaml
+          - template-import templates/frevana-network.yaml
           - criteria-import criteria/x-cross-platform.yaml
           - criteria-import criteria/tk-affiliate.yaml
           - criteria-import criteria/ig-affiliate.yaml
