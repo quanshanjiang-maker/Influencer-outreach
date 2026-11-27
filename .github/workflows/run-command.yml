@@ -29,6 +29,8 @@ on:
           - criteria-import criteria/tk-affiliate.yaml
           - criteria-import criteria/ig-affiliate.yaml
           - criteria-import criteria/x-affiliate.yaml
+          - criteria-import criteria/tk-micro.yaml
+          - criteria-import criteria/ig-micro.yaml
           - sort-candidates
           - find-candidates
           - list-candidates
