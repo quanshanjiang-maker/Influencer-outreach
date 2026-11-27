@@ -1,0 +1,31 @@
+# 2026-11-27: micro (<3k followers) version of ig-affiliate, user asked for 10-20 creators.
+# Load: python -m outreach criteria-import criteria/ig-micro.yaml
+# Search: python -m outreach search --criteria ig-micro
+name: ig-micro
+enabled: true
+platforms: instagram
+regions: US
+language: en
+keywords: Amazon finds, LTK, affiliate, product recommendations, home finds
+description: Small US Instagram creators who earn from affiliate links (Amazon storefront, LTK,
+  ShopMy) by recommending products in Reels, with an email in their bio.
+min_followers: 500
+max_followers: 3000
+min_avg_likes: 0
+max_candidates: 200
+since_days: 30
+pages_per_query: 3
+pitch: Frevana, a tool that lets people regenerate videos and images from social media. For our Black
+  Friday launch (Friday, November 27) it is free for a limited time. We'd love a short 10-minute interview
+  ($50 Frevana gift card as thanks) and a paid collaboration.
+queries:
+  Amazon finds: "#amazonfinds"
+  Amazon influencer: "#amazoninfluencer"
+  LTK: "#liketkit"
+  Founditonamazon: "#founditonamazon"
+  ShopMy: "#shopmy"
+rules: |
+  新人群（11-26）：Instagram 上靠联盟链接 (affiliate: Amazon storefront / LTK / ShopMy) 带货的小博主。
+  要：北美真人、500–3k 粉丝（11-27 用户要 3k 以下的小号）、Reels 在推荐具体商品，bio 有 Amazon storefront / LTK / ShopMy / link-in-bio，bio 有邮箱。
+  这批不排除 bio 写 collab/PR 的人。
+  排除：品牌官方号、店铺号、代理号、搬运号、非英语、近 30 天没发帖。
