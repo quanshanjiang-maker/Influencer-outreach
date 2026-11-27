@@ -1,4 +1,4 @@
-# 2026-11-27: micro (<3k followers) version of ig-affiliate, user asked for 10-20 creators.
+# 2026-11-27 (batch 2 queries): micro (<3k followers) version of ig-affiliate, user asked for 10-20 creators.
 # Load: python -m outreach criteria-import criteria/ig-micro.yaml
 # Search: python -m outreach search --criteria ig-micro
 name: ig-micro
@@ -19,13 +19,13 @@ pitch: Frevana, a tool that lets people regenerate videos and images from social
   Friday launch (Friday, November 27) it is free for a limited time. We'd love a short 10-minute interview
   ($50 Frevana gift card as thanks) and a paid collaboration.
 queries:
-  Amazon under 20: "#amazonfindsunder20"
-  LTK under 50: "#ltkunder50"
-  Mom finds IG: "#momfinds"
-  Amazon influencer program: "#amazoninfluencerprogram"
-  UGC community: "#ugccreatorcommunity"
-  LTK gift guide: "#ltkgiftguide"
-  Small creator: "#smallcreator"
+  Amazon home finds IG: "#amazonhomefinds"
+  Found it on Amazon IG: "#founditonamazon"
+  ShopMy: "#shopmy"
+  LTK home: "#ltkhome"
+  Amazon fashion finds: "#amazonfashionfinds"
+  Gifts for her IG: "#giftsforher"
+  UGC example: "#ugcexample"
 rules: |
   新人群（11-26）：Instagram 上靠联盟链接 (affiliate: Amazon storefront / LTK / ShopMy) 带货的小博主。
   要：北美真人、500–3k 粉丝（11-27 用户要 3k 以下的小号）、Reels 在推荐具体商品，bio 有 Amazon storefront / LTK / ShopMy / link-in-bio，bio 有邮箱。

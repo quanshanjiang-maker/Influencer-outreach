@@ -1,4 +1,4 @@
-# 2026-11-27: micro (<3k followers) version of tk-affiliate, user asked for 10-20 creators.
+# 2026-11-27 (batch 2 queries): micro (<3k followers) version of tk-affiliate, user asked for 10-20 creators.
 # Load: python -m outreach criteria-import criteria/tk-micro.yaml
 # Search: python -m outreach search --criteria tk-micro
 name: tk-micro
@@ -19,13 +19,13 @@ pitch: Frevana, a tool that lets people regenerate videos and images from social
   Friday launch (Friday, November 27) it is free for a limited time. We'd love a short 10-minute interview
   ($50 Frevana gift card as thanks) and a paid collaboration.
 queries:
-  Gift guide TTS: "#tiktokshopgiftguide"
-  Cyber week TTS: "#tiktokshopcyberweek"
-  Mom finds: "#momfinds"
-  Holiday gift ideas: "#holidaygiftideas"
-  UGC creator: "#ugccreator"
-  TTS creator: "#ttscreator"
-  Amazon must haves TT: "#amazonmusthaves"
+  TTS finds: "#tiktokshopfinds"
+  TT made me buy it: "#tiktokmademebuyit"
+  Found it on Amazon TT: "#founditonamazon"
+  Amazon home finds TT: "#amazonhomefinds"
+  Product review TT: "#productreview"
+  UGC community TT: "#ugccommunity"
+  Gifts for her TT: "#giftsforher"
 rules: |
   新人群（11-26）：TikTok Shop 联盟带货 (affiliate) 的小博主。
   要：北美真人、500–3k 粉丝（11-27 用户要 3k 以下的小号）、视频是在讲/展示具体商品（开箱、测评、好物推荐），bio 或视频里有 TikTok Shop / showcase / affiliate 链接，bio 有邮箱。
