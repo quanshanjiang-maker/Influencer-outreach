@@ -14,16 +14,18 @@ max_followers: 3000
 min_avg_likes: 0
 max_candidates: 200
 since_days: 30
-pages_per_query: 3
+pages_per_query: 4
 pitch: Frevana, a tool that lets people regenerate videos and images from social media. For our Black
   Friday launch (Friday, November 27) it is free for a limited time. We'd love a short 10-minute interview
   ($50 Frevana gift card as thanks) and a paid collaboration.
 queries:
-  TikTok Shop affiliate: "#tiktokshopaffiliate"
-  TikTok Shop creator: "#tiktokshopcreator"
-  TikTok made me buy it: "#tiktokmademebuyit"
-  TikTok Shop finds: "#tiktokshopfinds"
-  Black Friday TikTok Shop: "#tiktokshopblackfriday"
+  TikTok Shop haul: "#tiktokshophaul"
+  TikTok Shop deals: "#tiktokshopdeals"
+  TTS affiliate: "#ttsaffiliate"
+  TikTok Shop holiday: "#tiktokshopholidayhaul"
+  Amazon finds TT: "#amazonfinds"
+  Founditonamazon TT: "#founditonamazon"
+  TikTok Shop must haves: "#tiktokshopmusthaves"
 rules: |
   新人群（11-26）：TikTok Shop 联盟带货 (affiliate) 的小博主。
   要：北美真人、500–3k 粉丝（11-27 用户要 3k 以下的小号）、视频是在讲/展示具体商品（开箱、测评、好物推荐），bio 或视频里有 TikTok Shop / showcase / affiliate 链接，bio 有邮箱。
