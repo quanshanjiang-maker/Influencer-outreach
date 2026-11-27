@@ -11,6 +11,7 @@ from .models import PLATFORMS, Creator, Criteria
 CRITERIA_HEADERS = [
     "enabled", "name", "platforms", "regions", "pitch", "keywords", "description", "language",
     "min_followers", "max_followers", "min_avg_likes", "max_candidates", "rules",
+    "queries", "since_days", "pages_per_query",
 ]
 
 CANDIDATE_HEADERS = [
@@ -20,12 +21,14 @@ CANDIDATE_HEADERS = [
     "email", "email_source", "email_status", "opener",
     "send_from", "status", "thread_id", "reply_category", "reply_summary", "notes",
     "sent_at", "followup_count", "message_id",
-    "price_post", "price_thread", "price_quote", "leader_review", "leader_note",
+    "price_post", "price_thread", "price_retweet", "price_quote", "leader_review", "leader_note",
     "icp_fit", "location", "account_created", "dm_open",
+    "competitor", "competitor_post", "competitor_post_date", "competitor_post_text", "avg_views",
+    "avg_replies", "median_replies", "template",
 ]
 
-# X rates: a plain post, a thread, and a quote post (quote tweet).
-PRICE_COLUMNS = ["price_post", "price_thread", "price_quote"]
+# X rates: a plain post, a thread, a retweet and a quote post (quote tweet).
+PRICE_COLUMNS = ["price_post", "price_thread", "price_retweet", "price_quote"]
 
 # Leader review: one Candidates table, a dropdown column and two saved filter views.
 # A row shows up for the leader as soon as any price is filled and the leader hasn't decided yet.
@@ -37,7 +40,7 @@ REVIEW_OPTIONS = [REVIEW_PENDING, REVIEW_YES, REVIEW_NO]
 # Hiding never affects the tool: it reads and writes columns by header name.
 HIDDEN_COLUMNS = ["date", "criteria", "language", "matched_query", "top_tweet_url", "email_source", "account_created",
                   "email_status", "opener", "send_from", "thread_id", "reply_category", "sent_at",
-                  "followup_count", "message_id"]
+                  "followup_count", "message_id", "competitor_post_text"]
 LEADER_VIEW, APPROVED_VIEW = "Leader 审批（待审）", "推进中（通过）"
 
 
@@ -60,7 +63,7 @@ EXAMPLE_TEMPLATE = [
     "default",
     "Collab idea for {name}",
     "Hi {name},\n\n{opener}\n\n<your pitch here>\n\n"
-    "If you're open to it, could you share your rates for a post, a thread and a quote post?\n\nBest,\n<your name>\n\n"
+    "If you're open to it, could you share your rates for a post, a thread, a retweet and a quote post?\n\nBest,\n<your name>\n\n"
     "(Reply 'unsubscribe' and I won't email again.)",
 ]
 
@@ -81,6 +84,18 @@ def _int(v, default=0) -> int:
         return int(float(str(v).replace(",", "").strip()))
     except ValueError:
         return default
+
+
+def parse_queries(text: str) -> list[tuple[str, str]]:
+    """One search per line, "Label: query" (the label is optional)."""
+    out = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        label, sep, q = line.partition(": ")
+        out.append((label.strip(), q.strip()) if sep and q.strip() else ("", line))
+    return out
 
 
 class Sheet:
@@ -190,11 +205,14 @@ class Sheet:
         return added
 
     # --- criteria ------------------------------------------------------
-    def read_criteria(self) -> list[Criteria]:
+    def read_criteria(self, include_disabled: bool = False) -> list[Criteria]:
+        """Enabled Criteria rows (for search). Scoring passes include_disabled=True so rows found
+        under a criteria that was later switched off are still judged by its own rules."""
         ws = self.book.worksheet(self.tabs["criteria"])
         out = []
         for r in ws.get_all_records():
-            if not _truthy(r.get("enabled", "TRUE")) or not str(r.get("keywords", "")).strip():
+            off = not _truthy(r.get("enabled", "TRUE")) and not include_disabled
+            if off or not str(r.get("keywords", "")).strip():
                 continue
             platforms = [p.strip().lower() for p in str(r.get("platforms") or "x").split(",") if p.strip()]
             bad = [p for p in platforms if p not in PLATFORMS]
@@ -213,6 +231,9 @@ class Sheet:
                 platforms=platforms,
                 regions=[x.strip().upper() for x in str(r.get("regions") or "").split(",") if x.strip()],
                 rules=str(r.get("rules", "") or ""),
+                queries=parse_queries(str(r.get("queries", "") or "")),
+                since_days=_int(r.get("since_days")),
+                pages_per_query=_int(r.get("pages_per_query")),
             ))
         return out
 
@@ -299,6 +320,10 @@ class Sheet:
                 "location": c.location,
                 "account_created": c.account_created,
                 "dm_open": c.dm_open,
+                "competitor": c.competitor,
+                "competitor_post": c.competitor_post,
+                "competitor_post_date": c.competitor_post_date,
+                "competitor_post_text": c.competitor_post_text[:500],
                 "status": "new",
             }
             rows.append(row)
@@ -341,6 +366,39 @@ class Sheet:
             self.book.worksheet(self.tabs[key]).batch_update(data, value_input_option="RAW")
         return len(updates)
 
+    def sort_candidates(self, by: str = "score", first: int | None = None, last: int | None = None) -> int:
+        """Sort whole data rows by one column, highest first; empty cells go to the bottom.
+        With first/last, only that sheet row range is sorted (one search batch), so the
+        row numbers of other batches stay the same."""
+        cols = self._columns("candidates", CANDIDATE_HEADERS)
+        ws = self.book.worksheet(self.tabs["candidates"])
+        n = len(ws.col_values(1))
+        first = max(first or 2, 2)
+        last = min(last or n, n)
+        if last - first < 1:
+            return max(last - first + 1, 0)
+        ws.sort((cols.index(by) + 1, "des"), range=f"{rowcol_to_a1(first, 1)}:{rowcol_to_a1(last, len(cols))}")
+        return last - first + 1
+
+    def move_blocked_last(self, first: int, last: int, order: list[str] | None = None) -> list[tuple[str, int]]:
+        """Within sheet rows first..last, group rows by status in the given order (default: every
+        status except "blocked", then "blocked"); "*" stands for any status not named. Each group
+        keeps its current order. Returns [(group, rows)] in sheet order."""
+        order = [("*" if o.strip().lower() == "rest" else o.strip().lower()) for o in (order or ["*", "blocked"])]
+        if "*" not in order:  # never drop rows whose status isn't named
+            order.append("*")
+        cols = self._columns("candidates", CANDIDATE_HEADERS)
+        ws = self.book.worksheet(self.tabs["candidates"])
+        rng = f"{rowcol_to_a1(first, 1)}:{rowcol_to_a1(last, len(cols))}"
+        values = ws.get(rng, value_render_option="UNFORMATTED_VALUE")
+        values += [[] for _ in range(last - first + 1 - len(values))]
+        values = [v + [""] * (len(cols) - len(v)) for v in values]
+        i = cols.index("status")
+        key = lambda v: str(v[i]).strip().lower() if str(v[i]).strip().lower() in order else "*"
+        groups = [(o, [v for v in values if key(v) == o]) for o in order]
+        ws.update(range_name=rng, values=[v for _, g in groups for v in g], value_input_option="RAW")
+        return [(o, len(g)) for o, g in groups]
+
     # --- columns -------------------------------------------------------
     def _columns(self, key: str, required: list[str]) -> list[str]:
         """Header row of a tab; appends any required header that is missing
@@ -370,6 +428,17 @@ class Sheet:
         self.book.worksheet(self.tabs["outreach"]).append_rows(
             [[r.get(h, "") for h in cols] for r in records], value_input_option="RAW")
         return len(records)
+
+    def upsert_template(self, name: str, subject: str, body: str) -> str:
+        """Add or replace one row of the Templates tab, matched by name."""
+        rows = self.read_tab("templates", TEMPLATE_HEADERS)
+        match = next((n for n, r in rows if str(r.get("name", "")).strip() == name), None)
+        values = {"name": name, "subject": subject, "body": body}
+        if match is None:
+            self.append_tab("templates", TEMPLATE_HEADERS, [values])
+            return "added"
+        self.update_tab("templates", TEMPLATE_HEADERS, [(match, values)])
+        return "updated"
 
     def read_templates(self) -> dict[str, tuple[str, str]]:
         """{name: (subject, body)} from the Templates tab."""

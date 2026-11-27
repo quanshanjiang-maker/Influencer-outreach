@@ -1,0 +1,58 @@
+# New direction (2026-11-25): ecommerce creators who make Shopify / DTC store ads.
+# Load: python -m outreach criteria-import criteria/x-ecommerce.yaml
+# Search: python -m outreach search --criteria x-ecommerce
+name: x-ecommerce
+enabled: true
+platforms: x
+regions: US,CA
+language: en
+keywords: Shopify, DTC, ecommerce ads, UGC ads, Meta ads, TikTok Shop, product video
+description: Creators who run or teach Shopify / DTC ecommerce stores and make product ads, UGC ads or
+  creatives for Meta / TikTok, whose audience is store owners and media buyers.
+min_followers: 3000
+max_followers: 60000
+min_avg_likes: 0
+max_candidates: 150
+since_days: 45
+pages_per_query: 6
+pitch: Frevana, a tool that lets people regenerate videos and images from social media. For ecommerce
+  it turns any viral ad or post into new product creatives. For our Black Friday launch (Friday,
+  November 27) it is free for a limited time. We pay creators for a quote repost recommending it.
+queries:
+  Shopify ads: ((shopify OR "dtc brand" OR "ecom brand") (ads OR creatives OR "ad creative" OR ugc)) -filter:replies
+    -filter:retweets lang:en min_faves:10
+  Meta ads: ("meta ads" OR "facebook ads" OR "media buying" OR "media buyer") (ecom OR shopify OR dtc) -filter:replies
+    -filter:retweets lang:en min_faves:10
+  AI ad creatives: ("ai ads" OR "ai ugc" OR "ai product video" OR "ai ad creative" OR "ai creatives") (ecom OR
+    shopify OR dtc OR brand) -filter:replies -filter:retweets lang:en min_faves:5
+  TikTok Shop: ("tiktok shop" OR "tiktok ads") (ugc OR creatives OR affiliate) -filter:replies -filter:retweets
+    lang:en min_faves:10
+  Ecom store growth: ("shopify store" OR "online store" OR "my store" OR "ecom store") (sales OR revenue OR
+    conversion OR "landing page" OR "product page") -filter:replies -filter:retweets lang:en min_faves:15
+  Product photos AI: ("product photos" OR "product photography" OR "product shots" OR "product images") (ai
+    OR generated OR midjourney OR nano) -filter:replies -filter:retweets lang:en min_faves:10
+  Ad creative testing: ("creative testing" OR "winning ad" OR "winning creative" OR "ad hooks" OR "hook rate")
+    -filter:replies -filter:retweets lang:en min_faves:10
+rules: |
+  类型：电商垂直（Quote 推荐）
+
+  一、硬性条件
+  1. 内容主要是 Shopify / 独立站 / DTC 电商运营、广告投放、广告素材（UGC、产品视频），粉丝是店主或投手。
+  2. 英语发帖，受众以北美为主（英国、澳洲可以，扣一点分）。
+  3. 粉丝 3k–60k；近 7 天有发帖；私信开着或有联系方式。
+  4. 一般帖子浏览量约为粉丝 5% 以上。
+
+  二、排除
+  - 空投、抽奖、互关号；评论全是泛泛的 "Great post"；粉丝突然暴涨。
+  - 品牌官方号、平台员工。
+  - 纯卖课骗局、带单收益截图类。
+
+  三、注意：接推广、做付费合作不扣分，反而说明能合作。
+
+  四、分档（icp_fit）
+  - High：自己做电商广告素材或教投放，常分享工具，浏览量高（≥粉丝 10%）。
+  - Medium：电商话题对口，但很少分享工具，或浏览量一般。
+  - Low：只是偶尔提到电商，或数据很差。
+  五、评论是重点评分项（用户要求）
+  - 看近期帖子的评论数（replies）和评论内容：评论多、有真人在讨论、问工具或链接 → 加分。
+  - 一般帖子评论数中位数很低（大约 3 条以下），或评论全是 "Great post"、emoji、机器人 → 至少降一档，严重的直接 Low。

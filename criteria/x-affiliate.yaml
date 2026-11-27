@@ -1,0 +1,32 @@
+# 2026-11-26: TikTok Shop / Instagram affiliate (带货) creators found through X, because the
+# TikTok/IG search keys (APIFY_TOKEN, EASYKOL) are not set. User asked for 10 TikTok + 10 IG.
+# Load: python -m outreach criteria-import criteria/x-affiliate.yaml
+# Search: python -m outreach search --criteria x-affiliate
+name: x-affiliate
+enabled: true
+platforms: x
+regions: US,CA
+language: en
+keywords: TikTok Shop affiliate, Amazon influencer, LTK, product reviews, UGC
+description: Small US creators who sell products as TikTok Shop or Instagram affiliates (Amazon
+  storefront, LTK, ShopMy) and link their TikTok or Instagram from X.
+min_followers: 1000
+max_followers: 100000
+min_avg_likes: 0
+max_candidates: 300
+since_days: 45
+pages_per_query: 6
+pitch: Frevana, a tool that lets people regenerate videos and images from social media. For our Black
+  Friday launch (Friday, November 27) it is free for a limited time. We'd love a short 10-minute interview
+  ($50 Frevana gift card as thanks) and a paid collaboration.
+queries:
+  TikTok Shop affiliate: ("tiktok shop affiliate" OR "tiktok shop creator" OR "tiktok affiliate" OR "tts affiliate" OR "#tiktokshopaffiliate") -filter:retweets lang:en
+  TikTok Shop link: ("tiktok shop" OR "tiktokmademebuyit" OR "my showcase") url:tiktok.com -filter:retweets lang:en
+  Amazon influencer: ("amazon influencer" OR "amazon storefront" OR "my amazon storefront" OR "#amazonfinds" OR "#founditonamazon") -filter:retweets lang:en
+  LTK ShopMy: ("shop my ltk" OR "liketoknow.it" OR "shopltk" OR "shopmy.us" OR "on my ltk") -filter:retweets lang:en
+  Affiliate creator IG: ("affiliate" OR "product review" OR "amazon finds") url:instagram.com -filter:retweets lang:en
+rules: |
+  新人群（11-26）：TikTok Shop / Instagram 联盟带货 (affiliate) 的小博主，通过 X 找。
+  要：北美真人、1k–100k 粉丝、内容是推荐/测评具体商品，X 资料或网站里能看到 TikTok 或 IG 账号，最好 bio 有邮箱。
+  这批不排除 bio 写 collab/PR/business inquiries 的人（带货博主本来就接合作）。
+  排除：品牌官方号、店铺号、代理/MCN、优惠券搬运号、币圈、成人内容、非英语。

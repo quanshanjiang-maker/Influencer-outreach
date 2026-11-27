@@ -75,7 +75,15 @@ def cmd_search(cfg, args) -> int:
             source.regions = crit.regions
             source.min_followers, source.max_followers = crit.min_followers, crit.max_followers
             source.min_avg = crit.min_avg_likes
-        if source.expands_queries:
+        labels: dict[str, str] = {}
+        if crit.queries:
+            since = ""
+            if crit.since_days and platform == "x":
+                from datetime import date, timedelta
+                since = f" since:{(date.today() - timedelta(days=crit.since_days)).isoformat()}"
+            labels = {q + since: label for label, q in crit.queries}
+            queries = list(labels)
+        elif source.expands_queries:
             queries = expand_queries(
                 client, cfg.models.get("query_expansion", "claude-opus-5-5"), crit,
                 int(cfg.search.get("queries_per_criteria", 12)), platform=platform,
@@ -84,9 +92,16 @@ def cmd_search(cfg, args) -> int:
             queries = [f"{crit.description or crit.keywords} ({crit.keywords})"]
         result = run_search(
             source, crit, queries, known,
-            pages_per_query=int(cfg.search.get("pages_per_query", 3)),
+            pages_per_query=crit.pages_per_query or int(cfg.search.get("pages_per_query", 3)),
             tweet_budget=budgets.get(platform, 10**9),
         )
+        if labels:
+            for c in result.candidates:
+                c.competitor = ", ".join(sorted({labels[q] for q in c.matched_queries if labels.get(q)}))
+                top = c.top_tweet
+                if top:
+                    c.competitor_post, c.competitor_post_text = top.url, top.text
+                    c.competitor_post_date = top.created_at
         if platform in budgets:
             budgets[platform] -= result.tweets_fetched
         print(f"[{crit.name}/{platform}] queries={len(queries)} results={result.tweets_fetched} "
@@ -115,11 +130,13 @@ def cmd_score(cfg, args) -> int:
     min_score = int(sc.get("min_score", 7))
     limit = args.limit or int(sc.get("max_per_run", 1000))
     sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
-    crits = {c.name: c for c in sheet.read_criteria()}
+    crits = {c.name: c for c in sheet.read_criteria(include_disabled=True)}
     briefs = {n: f"{c.keywords}. {c.description}".strip() for n, c in crits.items()}
 
     todo = [(row, r) for row, r in sheet.read_candidates()
             if str(r.get("status", "")).strip() == "new" and str(r.get("score", "")).strip() == ""]
+    if args.criteria:
+        todo = [(row, r) for row, r in todo if str(r.get("criteria", "")) == args.criteria]
     todo = todo[:limit]
     if not todo:
         print("No new candidates to score.")
@@ -127,6 +144,7 @@ def cmd_score(cfg, args) -> int:
 
     sources = {}
     inputs = []
+    stats: dict[int, dict] = {}
     for row, r in todo:
         platform = str(r.get("platform") or "x")
         posts = [p for p in [str(r.get("score_reason", "")), str(r.get("matched_query", ""))] if p]
@@ -134,16 +152,27 @@ def cmd_score(cfg, args) -> int:
             try:
                 src = sources.get(platform) or get_source(platform, cfg)
                 sources[platform] = src
-                posts = [post_line(p) for p in src.recent_posts(str(r["username"]), 20)] or posts
+                recent = src.recent_posts(str(r["username"]), 20)
+                posts = [post_line(p) for p in recent] or posts
+                if recent:  # engagement on their latest posts, not just the search hits
+                    reps = sorted(p.replies for p in recent)
+                    stats[row] = {"avg_views": round(sum(p.views for p in recent) / len(recent)),
+                                  "avg_likes": round(sum(p.likes for p in recent) / len(recent), 1),
+                                  "avg_replies": round(sum(reps) / len(reps), 1),
+                                  "median_replies": reps[len(reps) // 2]}
             except Exception as e:
                 print(f"  could not fetch posts for @{r['username']}: {e}")
+        if str(r.get("competitor_post_text", "")).strip():
+            posts = [f"[post that matched the search, about {r.get('competitor') or 'a tracked brand'}] "
+                     f"{r['competitor_post_text']}"] + posts
         inputs.append(ScoreInput(
             row=row, platform=platform, username=str(r["username"]),
             followers=int(float(r.get("followers") or 0)), bio=str(r.get("bio", "")), posts=posts,
             brief=briefs.get(str(r.get("criteria")), str(r.get("criteria", ""))),
             pitch=sheet.pitch_for(str(r.get("criteria"))),
             rules=getattr(crits.get(str(r.get("criteria"))), "rules", ""),
-            profile={k: r.get(k, "") for k in ("location", "account_created", "dm_open", "website")},
+            profile={k: r.get(k, "") for k in ("location", "account_created", "dm_open", "website",
+                                                "competitor")},
         ))
 
     client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
@@ -160,6 +189,7 @@ def cmd_score(cfg, args) -> int:
         updates.append((x.row, {
             "score": a.score, "score_reason": a.reason, "tags": ", ".join(a.tags), "icp_fit": a.icp_fit,
             "opener": a.opener if ok else "", "status": "scored" if ok else "rejected",
+            **stats.get(x.row, {}),
         }))
         if args.dry_run:
             print(f"{x.platform}:{x.username}\t{a.score}\t{a.icp_fit}\t{a.reason}\n    opener: {a.opener}")
@@ -176,8 +206,24 @@ def cmd_emails(cfg, args) -> int:
     from .sheets import Sheet
 
     sheet = Sheet(cfg.google_service_account, cfg.sheet_id, cfg.sheet_tabs, oauth=cfg.google_oauth)
-    todo = [(row, r) for row, r in sheet.read_candidates()
-            if str(r.get("status", "")).strip() == "scored" and not str(r.get("email_status", "")).strip()]
+    from .sheets import PRICE_COLUMNS
+
+    if getattr(args, "handles", None):
+        # The user picked these creators by name: look them up whatever their status, unless an
+        # email was already checked.
+        want = {h.strip().lstrip("@").lower() for h in args.handles.split(",") if h.strip()}
+        todo = [(row, r) for row, r in sheet.read_candidates()
+                if str(r.get("username", "")).lower() in want and not str(r.get("email_status", "")).strip()]
+    elif args.top:
+        # The user picked "the top N in the sheet" (sorted by score): include rows the scorer
+        # rejected, but skip anyone who already quoted a price (already talking in DMs).
+        todo = [(row, r) for row, r in sheet.read_candidates()
+                if str(r.get("status", "")).strip() in ("scored", "rejected")
+                and not any(str(r.get(c, "")).strip() for c in PRICE_COLUMNS)][: args.top]
+        todo = [(row, r) for row, r in todo if not str(r.get("email_status", "")).strip()]
+    else:
+        todo = [(row, r) for row, r in sheet.read_candidates()
+                if str(r.get("status", "")).strip() == "scored" and not str(r.get("email_status", "")).strip()]
     todo = todo[: args.limit] if args.limit else todo
     if not todo:
         print("No scored candidates waiting for an email.")
@@ -248,20 +294,24 @@ def cmd_send(cfg, args) -> int:
     sheet = _sheet(cfg)
     rows = sheet.read_candidates()
     todo = [(row, r) for row, r in rows if str(r.get("status", "")).strip() in SENDABLE_STATUSES]
+    if args.template:  # e.g. send the interview-invite rows first
+        todo = [(row, r) for row, r in todo if (str(r.get("template", "")).strip() or "default") == args.template]
     if not todo:
         print("Nothing approved to send.")
         return 0
     sc = cfg.sending or {}
+    if args.daily_limit:  # one-off override the user asked for (e.g. send 20 today instead of 15)
+        for box in cfg.mailboxes:
+            box["daily_limit"] = args.daily_limit
     rot = _rotation(cfg, sheet)
     results = send_batch(
         todo, sheet.read_templates(), rot, suppressed(rows),
-        max_send=args.max or int(sc.get("max_per_run", 50)),
-        delay=(float(sc.get("min_delay_seconds", 60)), float(sc.get("max_delay_seconds", 180))),
+        max_send=args.max or int(sc.get("max_per_run", 15)),
+        delay=(float(sc.get("min_delay_seconds", 60)), float(sc.get("max_delay_seconds", 120))),
         dry_run=args.dry_run,
+        on_sent=lambda x: (sheet.update_candidates([(x.row, x.changes)]), sheet.append_outreach([x.log]),
+                           print(f"  sent to @{x.record.get('username')}", flush=True)),
     )
-    if not args.dry_run:
-        sheet.update_candidates([(x.row, x.changes) for x in results])
-        sheet.append_outreach([x.log for x in results])
     print(f"{'Would send' if args.dry_run else 'Sent'} {len(results)} of {len(todo)} approved emails.")
     return 0
 
@@ -306,7 +356,7 @@ def cmd_replies(cfg, args) -> int:
             else:
                 status = "unsubscribed" if c.category == "unsubscribe" else "replied"
                 change = {"status": status, "reply_category": c.category, "reply_summary": c.summary}
-                for col in ("price_post", "price_thread", "price_quote"):  # fill blanks only
+                for col in ("price_post", "price_thread", "price_retweet", "price_quote"):  # fill blanks only
                     value = str(getattr(c, col, "") or "").strip()[:60]
                     if value and not str(r.get(col, "")).strip():
                         change[col] = value  # any price puts the row in the leader's review view
@@ -342,8 +392,453 @@ def cmd_criteria_import(cfg, args) -> int:
         row["platforms"] = ",".join(row["platforms"])
     if isinstance(row.get("regions"), list):
         row["regions"] = ",".join(row["regions"])
+    if isinstance(row.get("queries"), dict):  # {label: query or [queries]}
+        row["queries"] = "\n".join(f"{k}: {q}" for k, v in row["queries"].items()
+                                   for q in (v if isinstance(v, list) else [v]))
     result = _sheet(cfg).upsert_criteria(row, only=args.only)
     print(f"Criteria '{row['name']}' {result}" + ("; other rows disabled." if args.only else "."))
+    return 0
+
+
+def cmd_template_import(cfg, args) -> int:
+    """Add or replace a Templates row from a YAML file with name, subject and body."""
+    import yaml
+
+    t = yaml.safe_load(open(args.file, encoding="utf-8").read())
+    if not isinstance(t, dict) or not all(t.get(k) for k in ("name", "subject", "body")):
+        raise SystemExit("The file needs name, subject and body.")
+    result = _sheet(cfg).upsert_template(str(t["name"]), str(t["subject"]), str(t["body"]).rstrip() + "\n")
+    print(f"Template '{t['name']}' {result}.")
+    return 0
+
+
+def cmd_sort(cfg, args) -> int:
+    """Sort Candidates by a column (default score), highest first, and print a summary."""
+    from collections import Counter
+
+    sheet = _sheet(cfg)
+    first, last = (int(x) for x in args.rows.split(":")) if args.rows else (None, None)
+    if args.blocked_last or args.group_order:
+        order = args.group_order.split(",") if args.group_order else None
+        start = first or 2
+        for name, count in sheet.move_blocked_last(start, last, order):
+            if count:
+                print(f"  {name}: rows {start}-{start + count - 1} ({count})")
+            start += count
+        return 0
+    n = sheet.sort_candidates(args.by, first, last)
+    rows = [r for i, r in sheet.read_candidates() if not args.rows or first <= i <= last]
+    where = f"rows {first}-{last}" if args.rows else "all rows"
+    print(f"Sorted {n} rows ({where}) by {args.by}, highest first (empty at the bottom).")
+    for name in sorted({str(r.get("criteria", "")) for r in rows}):
+        part = [r for r in rows if str(r.get("criteria", "")) == name]
+        scores = Counter(str(r.get("score", "")).strip() or "unscored" for r in part)
+        fits = Counter(str(r.get("icp_fit", "")).strip() or "-" for r in part)
+        print(f"  {name}: {len(part)} rows; scores {dict(sorted(scores.items()))}; icp_fit {dict(fits)}")
+    return 0
+
+
+def cmd_find(cfg, args) -> int:
+    """Look up creators in Candidates by handle or part of a handle (case-insensitive)."""
+    import re
+
+    norm = lambda x: re.sub(r"[^a-z0-9]", "", str(x).lower())
+    rows = _sheet(cfg).read_candidates()
+    for want in [w.strip().lstrip("@") for w in args.names.split(",") if w.strip()]:
+        exact = [(n, r) for n, r in rows if norm(r.get("username")) == norm(want)]
+        hits = exact or [(n, r) for n, r in rows if norm(want) in norm(r.get("username"))]
+        if not hits:
+            print(f"{want}: not in Candidates")
+        for n, r in hits[:5]:
+            print(f"{want}: {'match' if exact else 'partial'} row {n} @{r.get('username')} "
+                  f"({r.get('platform')}, {r.get('criteria')}, status {r.get('status')})")
+    return 0
+
+
+def cmd_list(cfg, args) -> int:
+    """Print the first N Candidates rows in sheet order: handle, score, fit, status, email status,
+    and whether a price is filled. Emails and prices themselves are not printed (logs are public)."""
+    from .sheets import PRICE_COLUMNS
+
+    for n, r in _sheet(cfg).read_candidates()[: args.top]:
+        quoted = "quoted" if any(str(r.get(c, "")).strip() for c in PRICE_COLUMNS) else "-"
+        print(f"row {n}\t@{r.get('username')}\tscore {r.get('score') or '-'}\t{r.get('icp_fit') or '-'}\t"
+              f"{r.get('status') or '-'}\temail {r.get('email_status') or '-'}\t{quoted}\t{r.get('criteria')}")
+    return 0
+
+
+def cmd_profiles(cfg, args) -> int:
+    """Print public X profile stats for handles: followers, location, views, quote/promo posts,
+    brands they tagged in promo posts, and (with --score) the scorer's verdict under a criteria row."""
+    import re
+    from statistics import median
+
+    from .sources import get_source
+    from .sources.twitterapi_io import _tweet
+
+    promo_re = re.compile(r"#ad\b|#sponsored|\bsponsored\b|partner(ed)? with|affiliate|use (my )?code|"
+                          r"promo code|discount|thanks to @\w+ for|in collaboration with|#collab", re.I)
+    src = get_source("x", cfg)
+    crit = None
+    if args.score:
+        import anthropic
+
+        from .score import ScoreInput, assess, post_line
+        crit = next((c for c in _sheet(cfg).read_criteria() if c.name == args.score), None)
+        client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
+    for want in [w.strip().lstrip("@") for w in args.names.split(",") if w.strip()]:
+        try:
+            c = src.user_info(want)
+        except Exception as e:
+            c = None
+            print(f"{want}: lookup failed ({e})")
+        if c is None:
+            print(f"{want}: no such X handle")
+            continue
+        all_tw, cursor = [], ""
+        for _page in range(6):  # page further back when recent tweets are mostly retweets
+            params = {"userName": c.username}
+            if cursor:
+                params["cursor"] = cursor
+            data = src._get("/twitter/user/last_tweets", params)
+            all_tw += data.get("tweets") or (data.get("data") or {}).get("tweets") or []
+            originals = sum(1 for t in all_tw if not t.get("retweeted_tweet"))
+            cursor = data.get("next_cursor") or (data.get("data") or {}).get("next_cursor") or ""
+            if originals >= 10 or not cursor or not data.get("has_next_page", True):
+                break
+        raw = [t for t in all_tw if not t.get("retweeted_tweet")][:40]
+        if not raw:
+            n_rt = sum(1 for t in all_tw if t.get("retweeted_tweet"))
+            print(f"{c.username}: API returned {len(all_tw)} recent tweets, {n_rt} of them retweets")
+        posts = [_tweet(t) for t in raw]
+        views = [p.views for p in posts] or [0]
+        quotes = [t for t in raw if t.get("quoted_tweet")]
+        promos = [t for t in raw if t.get("quoted_tweet") or promo_re.search(t.get("text") or "")]
+        brands = sorted({m.lower() for t in promos for m in re.findall(r"@(\w+)", t.get("text") or "")}
+                        | {str((t.get("quoted_tweet") or {}).get("author", {}).get("userName", "")).lower()
+                           for t in quotes} - {"", c.username.lower()})
+        last_q = quotes[0] if quotes else None
+        print(f"@{c.username} | {c.name} | followers {c.followers} | location {c.location or '-'} | "
+              f"joined {c.account_created[:10] or '-'} | DM {c.dm_open or '-'} | posts {len(posts)} | "
+              f"median views {int(median(views))} | avg views {int(sum(views) / len(views))} | "
+              f"last post {posts[0].created_at if posts else '-'}")
+        pv = [int(t.get("viewCount") or 0) for t in promos]
+        nv = [int(t.get("viewCount") or 0) for t in raw if t not in promos]
+        print(f"    normal (non-promo) posts {len(nv)} | median normal views "
+              f"{int(median(nv)) if nv else '-'}")
+        print(f"    promo/quote posts {len(promos)} (quotes {len(quotes)}) | median promo views "
+              f"{int(median(pv)) if pv else '-'} | last quote views "
+              f"{int(last_q.get('viewCount') or 0) if last_q else '-'} "
+              f"({last_q.get('createdAt', '') if last_q else ''}) | tagged/quoted {', '.join(brands[:12]) or '-'}")
+        print(f"    website {c.website or '-'} | bio: {c.bio[:200]!r}")
+        try:  # who this account replies to, retweets, quotes and mentions (spots engagement pods)
+            rep = src._get("/twitter/user/last_tweets", {"userName": c.username, "includeReplies": "true"})
+            rep_tw = rep.get("tweets") or (rep.get("data") or {}).get("tweets") or []
+            from collections import Counter
+            links = Counter()
+            for t in all_tw + rep_tw:
+                for kind, who in (("reply", t.get("inReplyToUsername")),
+                                  ("rt", ((t.get("retweeted_tweet") or {}).get("author") or {}).get("userName")),
+                                  ("quote", ((t.get("quoted_tweet") or {}).get("author") or {}).get("userName"))):
+                    if who and who.lower() != c.username.lower():
+                        links[f"{kind}:{who}"] += 1
+                for m in ((t.get("entities") or {}).get("user_mentions") or []):
+                    who = m.get("screen_name") or m.get("username")
+                    if who and who.lower() != c.username.lower():
+                        links[f"mention:{who}"] += 1
+            print("    interacts: " + ", ".join(f"{k}x{v}" for k, v in links.most_common(40)))
+        except Exception as e:  # noqa: BLE001
+            print(f"    interacts: lookup failed ({e})")
+
+        print("    " + _audience_quality(src, c, posts))
+        if crit:
+            a = assess(client, cfg.models.get("scoring", "claude-haiku-5-5"), ScoreInput(
+                row=0, platform="x", username=c.username, followers=c.followers, bio=c.bio,
+                posts=[post_line(p) for p in posts[:20]], brief=f"{crit.keywords}. {crit.description}",
+                pitch="", rules=crit.rules,
+                profile={"location": c.location, "account_created": c.account_created, "dm_open": c.dm_open}))
+            if a:
+                print(f"    score {a.score} | icp_fit {a.icp_fit} | {a.reason}")
+    return 0
+
+
+def _audience_quality(src, c, posts) -> str:
+    """One line on follower quality: reach (views/followers), engagement per view and per follower,
+    follower/following ratio, and red flags that often mean bought or inactive followers."""
+    from statistics import median
+
+    try:
+        u = (src._get("/twitter/user/info", {"userName": c.username}).get("data") or {})
+    except Exception:
+        u = {}
+    following = int(u.get("following") or 0)
+    statuses = int(u.get("statusesCount") or 0)
+    f = max(c.followers, 1)
+    mv = median([p.views for p in posts]) if posts else 0
+    ml = median([p.likes for p in posts]) if posts else 0
+    eng = [(p.likes + p.retweets + p.replies) / p.views for p in posts if p.views]
+    er = median(eng) * 100 if eng else 0.0
+    reach = mv / f * 100
+    flags = []
+    if posts and reach < 2:
+        flags.append("reach<2% (possible inactive/bought followers)")
+    if eng and er < 0.5:
+        flags.append("engagement<0.5% of views")
+    if c.followers >= 10000 and following > c.followers * 0.8:
+        flags.append("follow-for-follow pattern")
+    if posts and ml / f * 100 < 0.05:
+        flags.append("likes<0.05% of followers")
+    return (f"audience: following {following} | follower/following {c.followers / max(following, 1):.1f} | "
+            f"total posts {statuses} | blue {u.get('isBlueVerified', '-')} | views/followers {reach:.1f}% | "
+            f"median likes {int(ml)} | likes/followers {ml / f * 100:.2f}% | engagement/views {er:.2f}% | "
+            f"flags {', '.join(flags) or 'none'}")
+
+
+def _unseal(token: str, secret: str) -> bytes:
+    """Decrypt a payload sealed with the same secret (HMAC-SHA256 keystream + tag), so private
+    values like prices never appear in plain text in public workflow inputs or logs."""
+    import base64
+    import hashlib
+    import hmac
+
+    raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+    nonce, tag, body = raw[:16], raw[16:32], raw[32:]
+    key = hashlib.sha256(("outreach-seal:" + secret).encode()).digest()
+    if not hmac.compare_digest(hmac.new(key, nonce + body, hashlib.sha256).digest()[:16], tag):
+        raise SystemExit("Sealed payload does not match this sheet.")
+    stream = b"".join(hmac.new(key, nonce + i.to_bytes(4, "big"), hashlib.sha256).digest()
+                      for i in range(len(body) // 32 + 1))
+    return bytes(a ^ b for a, b in zip(body, stream))
+
+
+def _seal(data: bytes, secret: str) -> str:
+    """Inverse of _unseal: encrypt private values so they can be printed in a public log."""
+    import base64
+    import hashlib
+    import hmac
+    import os
+
+    key = hashlib.sha256(("outreach-seal:" + secret).encode()).digest()
+    nonce = os.urandom(16)
+    stream = b"".join(hmac.new(key, nonce + i.to_bytes(4, "big"), hashlib.sha256).digest()
+                      for i in range(len(data) // 32 + 1))
+    body = bytes(a ^ b for a, b in zip(data, stream))
+    tag = hmac.new(key, nonce + body, hashlib.sha256).digest()[:16]
+    return base64.urlsafe_b64encode(nonce + tag + body).decode().rstrip("=")
+
+
+def cmd_dump_replies(cfg, args) -> int:
+    """Print the reply outcome of every row that has one (status, category, summary, prices)
+    as one sealed token, so the values never appear in plain text in a public log."""
+    import json
+
+    from .sheets import PRICE_COLUMNS
+
+    keep = {"replied", "unsubscribed", "bounced", "followup_due"}
+    out = {}
+    for _, r in _sheet(cfg).read_candidates():
+        if str(r.get("status", "")).strip() in keep or str(r.get("reply_category", "")).strip():
+            out[str(r.get("username", ""))] = {k: str(r.get(k, "")) for k in
+                                               ["status", "reply_category", "reply_summary", *PRICE_COLUMNS]}
+    print(f"{len(out)} rows with a reply outcome.")
+    print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
+    return 0
+
+
+def cmd_dump_shortlist(cfg, args) -> int:
+    """Print scored rows of the given criteria (score >= --min-score) with profile stats, bio and
+    score reason as one sealed token, for building the shortlist without plain values in the log."""
+    import json
+
+    want = {c.strip() for c in args.criteria.split(",") if c.strip()}
+    cols = ["criteria", "platform", "profile_url", "followers", "bio", "score", "score_reason", "icp_fit", "location",
+            "avg_views", "avg_likes", "avg_replies", "median_replies", "email_status", "status", "dm_open",
+            "account_created"]
+    out = {}
+    for _, r in _sheet(cfg).read_candidates():
+        if want and str(r.get("criteria", "")).strip() not in want:
+            continue
+        try:
+            sc = float(str(r.get("score", "")).strip() or -1)
+        except ValueError:
+            continue
+        if sc >= args.min_score:
+            out[str(r.get("username", ""))] = {k: str(r.get(k, "")) for k in cols}
+    print(f"{len(out)} rows on the shortlist.")
+    print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
+    return 0
+
+
+COUNTER_BODY = ("Hi, thank you for your reply. We have a limited budget this time. "
+                "Would {amount} work for you for a quote this time?\n\nBest,\nAmy\nFrevana")
+
+
+def cmd_socials(cfg, args) -> int:
+    """Look for each creator's TikTok and Instagram: links in the bio, the website and the page it
+    links to (link-in-bio pages), plus a same-name check on TikTok (marked as a guess). Prints one
+    sealed token; nothing is written to the sheet."""
+    import json
+    import re
+
+    import requests
+
+    ua = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
+    tt = re.compile(r"tiktok\.com/@([A-Za-z0-9_.]{2,30})", re.I)
+    ig = re.compile(r"instagram\.com/(?!p/|reel/|explore/|accounts/)([A-Za-z0-9_.]{2,30})", re.I)
+
+    def get(url):
+        try:
+            r = requests.get(url if "://" in url else "https://" + url, headers=ua, timeout=12)
+            return r.status_code, r.text[:400000]
+        except requests.RequestException:
+            return 0, ""
+
+    def tiktok_followers(name):
+        code, html = get(f"https://www.tiktok.com/@{name}")
+        m = re.search(r'"followerCount":(\d+)', html)
+        return code, (int(m.group(1)) if m else None)
+
+    want = {h.strip().lstrip("@").lower() for h in args.handles.split(",") if h.strip()}
+    out = {}
+    for _, r in _sheet(cfg).read_candidates():
+        h = str(r.get("username", ""))
+        if h.lower() not in want or h in out:
+            continue
+        text = f"{r.get('bio', '')} {r.get('website', '')}"
+        site = str(r.get("website", "")).strip()
+        if site:
+            text += " " + get(site)[1]
+        tts, igs = sorted({m.lower() for m in tt.findall(text)}), sorted({m.lower().rstrip(".") for m in ig.findall(text)})
+        res = {"website": site, "tiktok": [], "instagram": [f"https://instagram.com/{n}" for n in igs]}
+        for n in tts:
+            res["tiktok"].append({"url": f"https://tiktok.com/@{n}", "followers": tiktok_followers(n)[1], "guess": False})
+        if not tts:
+            code, f = tiktok_followers(h)
+            if f is not None:
+                res["tiktok"].append({"url": f"https://tiktok.com/@{h}", "followers": f, "guess": True})
+        out[h] = res
+    print(f"Checked {len(out)} creators.")
+    print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
+    return 0
+
+
+def cmd_counter_offer(cfg, args) -> int:
+    """Reply in each creator's existing email thread with a counter-offer for one quote post.
+    Input is a sealed JSON payload {handle: "$30"} (or {handle: {"body": ..., "status": ...}} for any
+    other in-thread reply) so amounts never appear in public logs;
+    prints only handles. Sets status 'countered' and records the offer in our_offer."""
+    import json
+    import random
+    import time
+    from datetime import datetime, timezone
+
+    token = open(args.sealed_file).read().strip() if args.sealed_file else args.sealed
+    data = json.loads(_unseal(token, str(cfg.sheet_id)))
+    sheet = _sheet(cfg)
+    rows = {str(r.get("username", "")).lower(): (n, r) for n, r in sheet.read_candidates()}
+    boxes = {c["address"]: m for c, m in _rotation(cfg, sheet).boxes}
+    templates = sheet.read_templates()
+    from .send import render
+    subject_tpl = (templates.get("default", ("Quick collab question from Frevana", ""))[0]
+                   or "Quick collab question from Frevana")
+    updates, log_rows, first = [], [], True
+    for handle, amount in data.items():
+        hit = rows.get(handle.lower().lstrip("@"))
+        if hit is None:
+            print(f"@{handle}: skipped (not in Candidates)")
+            continue
+        n, r = hit
+        box = boxes.get(str(r.get("send_from")))
+        email, thread = str(r.get("email", "")).strip(), str(r.get("thread_id", ""))
+        if box is None or not email or not thread:
+            print(f"@{handle}: skipped (no original email thread)")
+            continue
+        subject = "Re: " + render((subject_tpl, ""), r)[0]  # fill {name} like the first email
+        if not first:
+            time.sleep(random.uniform(20, 40))
+        first = False
+        body = amount["body"] if isinstance(amount, dict) else COUNTER_BODY.format(amount=amount)
+        new_status = amount.get("status", "countered") if isinstance(amount, dict) else "countered"
+        try:
+            box.send(email, subject, body, thread_id=thread,
+                     in_reply_to=str(r.get("message_id", "")))
+        except Exception as e:
+            print(f"@{handle}: send failed ({type(e).__name__})")
+            continue
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        updates.append((n, {"status": new_status}))
+        log_rows.append({"sent_at": ts, "platform": r.get("platform", ""), "username": r.get("username", ""),
+                         "email": email, "send_from": box.address, "subject": subject, "thread_id": thread,
+                         "followup_count": r.get("followup_count", 0), "last_event": new_status,
+                         "last_event_at": ts})
+        print(f"@{handle}: reply sent")
+    sheet.update_candidates(updates)
+    sheet.append_outreach(log_rows)
+    return 0
+
+
+def cmd_dump_threads(cfg, args) -> int:
+    """Print every reply in the email threads of rows with the given statuses as one sealed
+    token {handle: [{date, text}]}, so reply text and prices never appear in a public log."""
+    import json
+
+    want = {s.strip() for s in (args.status or "").split(",") if s.strip()}
+    handles = ({h.strip().lstrip("@").lower() for h in args.handles.split(",") if h.strip()}
+               if getattr(args, "handles", None) else None)
+    sent = bool(getattr(args, "include_sent", False))
+    sheet = _sheet(cfg)
+    boxes = {c["address"]: m for c, m in _rotation(cfg, sheet).boxes}
+    out, checked = {}, 0
+    for _, r in sheet.read_candidates():
+        if handles is not None:
+            if str(r.get("username", "")).lower() not in handles:
+                continue
+        elif str(r.get("status", "")).strip() not in want:
+            continue
+        box, thread = boxes.get(str(r.get("send_from"))), str(r.get("thread_id", ""))
+        if box is None or not thread:
+            continue
+        checked += 1
+        try:
+            if sent:
+                got = box.replies(thread, full=True, include_sent=True)
+            else:
+                got = (box.replies(thread, full=True) if "full" in box.replies.__code__.co_varnames
+                       else box.replies(thread))  # whole reply text, not the Gmail snippet
+        except Exception as e:
+            print(f"  could not read a thread ({type(e).__name__})")
+            continue
+        if got:
+            out[str(r.get("username", ""))] = [{"date": x.date, "bounce": x.is_bounce, "from": x.sender if sent else "",
+                                                "text": x.text[:1500]} for x in got]
+    print(f"Checked {checked} threads; {len(out)} have replies.")
+    print("SEALED " + _seal(json.dumps(out).encode(), str(cfg.sheet_id)))
+    return 0
+
+
+def cmd_set_fields(cfg, args) -> int:
+    """Fill Candidates cells from a sealed JSON payload {handle: {column: value}}; prints no values."""
+    import json
+
+    from .sheets import CANDIDATE_HEADERS
+
+    token = open(args.sealed_file).read().strip() if args.sealed_file else args.sealed
+    data = json.loads(_unseal(token, str(cfg.sheet_id)))
+    sheet = _sheet(cfg)
+    rows: dict[str, list[int]] = {}
+    for n, r in sheet.read_candidates():  # a handle can sit in more than one row (two searches)
+        rows.setdefault(str(r.get("username", "")).lower(), []).append(n)
+    updates = []
+    for handle, changes in data.items():
+        bad = [c for c in changes if c not in CANDIDATE_HEADERS]
+        ns = rows.get(handle.lower().lstrip("@"))
+        if bad or not ns:
+            print(f"@{handle}: skipped ({'unknown columns ' + str(bad) if bad else 'not in Candidates'})")
+            continue
+        updates += [(n, changes) for n in ns]
+        print(f"@{handle}: updated {', '.join(changes)} (rows {', '.join(map(str, ns))})")
+    sheet.update_candidates(updates)
     return 0
 
 
@@ -425,9 +920,14 @@ def main(argv: list[str] | None = None) -> int:
     sc = sub.add_parser("score", help="score new candidates and draft openers")
     sc.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
     sc.add_argument("--limit", type=int, help="score at most N candidates")
+    sc.add_argument("--criteria", help="only score rows found by the criteria row with this name")
     em = sub.add_parser("emails", help="find and verify emails for scored candidates")
     em.add_argument("--dry-run", action="store_true", help="print results instead of writing the sheet")
     em.add_argument("--limit", type=int, help="process at most N candidates")
+    em.add_argument("--top", type=int, help="the first N rows of Candidates (sorted by score), rejected included")
+    em.add_argument("--handles", help="comma list of handles to look up, any status")
+    lc = sub.add_parser("list-candidates", help="print the first rows of Candidates (no emails or prices)")
+    lc.add_argument("--top", type=int, default=30)
     ap = sub.add_parser("approve", help="approve ready rows for sending (only changes the sheet)")
     ap.add_argument("--handles", help="comma list: alice,@bob,youtube:carol")
     ap.add_argument("--min-score", type=int, help="approve every ready row with score >= N")
@@ -437,11 +937,42 @@ def main(argv: list[str] | None = None) -> int:
     se = sub.add_parser("send", help="email approved rows")
     se.add_argument("--dry-run", action="store_true", help="print the emails instead of sending")
     se.add_argument("--max", type=int, help="send at most N this run")
+    se.add_argument("--template", help="only send rows that use this template (default = no template set)")
+    se.add_argument("--daily-limit", type=int, help="override each mailbox's daily_limit for this run")
     rp = sub.add_parser("replies", help="check sent threads for replies, bounces and follow-ups")
     rp.add_argument("--dry-run", action="store_true")
     ci = sub.add_parser("criteria-import", help="add or update a Criteria row from a YAML file")
     ci.add_argument("file")
     ci.add_argument("--only", action="store_true", help="disable every other Criteria row")
+    ti = sub.add_parser("template-import", help="add or replace a Templates row from a YAML file")
+    ti.add_argument("file")
+    fi = sub.add_parser("find-candidates", help="look up creators in Candidates by handle")
+    fi.add_argument("--names", required=True, help="comma list of handles or parts of handles")
+    pr = sub.add_parser("x-profiles", help="print public X profile stats for handles")
+    pr.add_argument("--names", required=True, help="comma list of X handles")
+    pr.add_argument("--score", help="also score them under this Criteria row name")
+    dt = sub.add_parser("dump-threads", help="sealed dump of replies in threads of rows with these statuses")
+    dt.add_argument("--status", default="sent,countered,replied")
+    dt.add_argument("--handles", help="comma list of handles instead of --status")
+    dt.add_argument("--include-sent", action="store_true", help="also dump our own messages in each thread")
+    co = sub.add_parser("counter-offer", help="reply in-thread with a counter-offer (sealed {handle: amount})")
+    co.add_argument("--sealed")
+    co.add_argument("--sealed-file", help="file in the repo holding a sealed token too long for a workflow input")
+    so2 = sub.add_parser("socials", help="find TikTok / Instagram links for handles (sealed output)")
+    so2.add_argument("--handles", required=True)
+    ds = sub.add_parser("dump-shortlist", help="print scored rows of some criteria as one sealed token")
+    ds.add_argument("--criteria", default="")
+    ds.add_argument("--min-score", type=float, default=7)
+    sub.add_parser("dump-replies", help="print reply outcomes as one sealed token (no plain values)")
+    sf = sub.add_parser("set-fields", help="fill Candidates cells from a sealed payload")
+    sf.add_argument("--sealed")
+    sf.add_argument("--sealed-file", help="file in the repo holding a sealed token too long for a workflow input")
+    so = sub.add_parser("sort-candidates", help="sort Candidates by a column, highest first")
+    so.add_argument("--by", default="score")
+    so.add_argument("--group-order", help="with --rows: group rows by status in this order, * or rest = the rest, "
+                    "e.g. no_email,ready,rest,blocked")
+    so.add_argument("--blocked-last", action="store_true", help="with --rows: only move blocked rows to the bottom")
+    so.add_argument("--rows", help="only sort this sheet row range, e.g. 777:1003 (one search batch)")
     ar = sub.add_parser("archive-candidates", help="move one platform's candidates to an archive tab")
     ar.add_argument("--platform", required=True)
     ar.add_argument("--dry-run", action="store_true")
@@ -460,7 +991,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"setup-sheet": cmd_setup_sheet, "search": cmd_search, "score": cmd_score, "emails": cmd_emails,
             "approve": cmd_approve, "send": cmd_send, "replies": cmd_replies,
             "slack": cmd_slack, "test-email": cmd_test_email,
-            "criteria-import": cmd_criteria_import, "archive-candidates": cmd_archive, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
+            "criteria-import": cmd_criteria_import, "template-import": cmd_template_import, "archive-candidates": cmd_archive, "sort-candidates": cmd_sort, "find-candidates": cmd_find, "list-candidates": cmd_list, "x-profiles": cmd_profiles, "set-fields": cmd_set_fields, "dump-replies": cmd_dump_replies, "dump-shortlist": cmd_dump_shortlist, "socials": cmd_socials, "counter-offer": cmd_counter_offer, "dump-threads": cmd_dump_threads, "gmail-auth": cmd_gmail_auth, "google-auth": cmd_gmail_auth}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

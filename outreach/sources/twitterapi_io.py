@@ -38,6 +38,7 @@ def _creator(a: dict) -> Creator:
         name=a.get("name", "") or "",
         profile_url=a.get("url") or f"https://x.com/{username}",
         followers=int(a.get("followers") or 0),
+        following=int(a.get("following") or 0),
         bio=a.get("description", "") or "",
         location=a.get("location", "") or "",
         website=website,
@@ -89,3 +90,12 @@ class TwitterApiIoSource(Source):
         tweets = data.get("tweets") or (data.get("data") or {}).get("tweets") or []
         out = [_tweet(t) for t in tweets if not t.get("retweeted_tweet")]
         return out[:limit]
+
+    def user_info(self, username: str) -> Creator | None:
+        data = self._get("/twitter/user/info", {"userName": username})
+        u = data.get("data") or {}
+        return _creator(u) if u.get("userName") else None
+
+    def user_search(self, query: str) -> list[Creator]:
+        data = self._get("/twitter/user/search", {"query": query})
+        return [_creator(u) for u in (data.get("users") or []) if u.get("userName")]

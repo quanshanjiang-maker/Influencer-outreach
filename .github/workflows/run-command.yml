@@ -18,13 +18,40 @@ on:
           - emails --dry-run
           - emails
           - criteria-import criteria/x-north-america.yaml --only
+          - criteria-import criteria/x-competitors.yaml --only
+          - criteria-import criteria/x-ecommerce.yaml
+          - criteria-import criteria/x-ai-news.yaml
+          - criteria-import criteria/x-ai-video-artists.yaml
+          - template-import templates/frevana-default.yaml
+          - template-import templates/frevana-interview.yaml
+          - template-import templates/frevana-affiliate.yaml
+          - template-import templates/frevana-network.yaml
+          - template-import templates/frevana-avatar.yaml
+          - criteria-import criteria/x-cross-platform.yaml
+          - criteria-import criteria/tk-affiliate.yaml
+          - criteria-import criteria/ig-affiliate.yaml
+          - criteria-import criteria/x-affiliate.yaml
+          - criteria-import criteria/tk-micro.yaml
+          - criteria-import criteria/ig-micro.yaml
+          - sort-candidates
+          - find-candidates
+          - list-candidates
+          - x-profiles
+          - set-fields
           - archive-candidates --platform youtube --dry-run
           - archive-candidates --platform youtube
           - approve --dry-run
           - approve
           - test-email
           - send --dry-run
+          - send
           - replies --dry-run
+          - replies
+          - dump-replies
+          - dump-shortlist
+          - socials
+          - counter-offer
+          - dump-threads
           - slack digest --dry-run
       extra:
         description: "Extra flags, e.g. --limit 20, or for approve: --min-score 8 --skip youtube:foo (optional)"
@@ -34,7 +61,7 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60   # a send batch of 15 with 1-2 min gaps takes up to ~30 min
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       TWITTERAPI_IO_KEY: ${{ secrets.TWITTERAPI_IO_KEY }}

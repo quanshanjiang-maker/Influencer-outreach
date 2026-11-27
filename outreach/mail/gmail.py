@@ -6,6 +6,7 @@ Auth uses an OAuth refresh token for the sending account. Create one once with
 from __future__ import annotations
 
 import base64
+import re
 import time
 
 import requests
@@ -61,15 +62,42 @@ class GmailMailbox(Mailbox):
         r.raise_for_status()
         return SentMessage(message_id=msg["Message-ID"], thread_id=r.json()["threadId"])
 
-    def replies(self, thread_id: str) -> list[Reply]:
+    @staticmethod
+    def _plain(part: dict) -> str:
+        """First text/plain body in a message payload, without the quoted earlier mail."""
+        if part.get("mimeType") == "text/plain" and part.get("body", {}).get("data"):
+            text = base64.urlsafe_b64decode(part["body"]["data"] + "==").decode("utf-8", "replace")
+            return re.split(r"\n\s*On .{0,200}wrote:\s*\n|\n>", text, maxsplit=1)[0].strip()
+        for sub in part.get("parts", []) or []:
+            got = GmailMailbox._plain(sub)
+            if got:
+                return got
+        return ""
+
+    def replies(self, thread_id: str, full: bool = False, include_sent: bool = False) -> list[Reply]:
+        """Replies in a thread. full=True reads the whole plain-text body (not the ~200-char snippet).
+        include_sent=True also returns our own messages (sender is our address)."""
         out = []
-        for m in self._thread(thread_id).get("messages", []):
+        if full:
+            for wait in (0, 2, 5, 10, 20):  # Gmail rate-limits quick bursts of full reads (403/429)
+                time.sleep(wait)
+                r = requests.get(f"{API}/threads/{thread_id}", headers=self._auth(), timeout=20,
+                                 params={"format": "full"})
+                if r.status_code not in (403, 429):
+                    break
+            r.raise_for_status()
+            messages = r.json().get("messages", [])
+        else:
+            messages = self._thread(thread_id).get("messages", [])
+        for m in messages:
             h = self._headers(m)
             sender = h.get("from", "")
-            if self.address.lower() in sender.lower() or "SENT" in m.get("labelIds", []):
+            mine = self.address.lower() in sender.lower() or "SENT" in m.get("labelIds", [])
+            if mine and not include_sent:
                 continue
-            out.append(Reply(sender=sender, date=h.get("date", ""), text=m.get("snippet", ""),
-                             is_bounce=self.looks_like_bounce(sender, h.get("subject", ""))))
+            text = (self._plain(m.get("payload", {})) if full else "") or m.get("snippet", "")
+            out.append(Reply(sender="me" if mine else sender, date=h.get("date", ""), text=text,
+                             is_bounce=False if mine else self.looks_like_bounce(sender, h.get("subject", ""))))
         return out
 
 

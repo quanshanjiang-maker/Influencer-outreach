@@ -1,0 +1,65 @@
+# First batch for the Black Friday launch: creators who recently posted about or
+# promoted a competitor. Fixed searches (no query expansion), last 60 days only.
+# Load into the Criteria tab with:
+#   python -m outreach criteria-import criteria/x-competitors.yaml --only
+# Each search line is "Competitor: query"; the competitor name goes to the
+# "competitor" column and the matching post to "competitor_post".
+name: x-competitors
+enabled: true
+platforms: x
+regions: US,CA
+language: en
+keywords: Flova AI, Sume Labs, MiniMax, Hailuo, KREA, Runway, Black Forest Labs, FLUX
+description: Real individual creators in the US or Canada who recently posted about, reviewed or promoted
+  an AI image or video tool from our competitor list (Flova AI, Sume Labs, MiniMax/Hailuo, KREA, Runway,
+  Black Forest Labs/FLUX).
+min_followers: 3000
+max_followers: 30000
+min_avg_likes: 0
+max_candidates: 200
+since_days: 60
+pages_per_query: 10
+pitch: Frevana, a tool that lets people regenerate videos and images from social media. For our Black
+  Friday launch (Friday, November 27) it is free for a limited time. We pay creators for a post, thread,
+  retweet or quote repost about it.
+queries:
+  Flova AI: ("flova ai" OR flova.ai OR flovaai OR @flova_ai) -filter:replies -filter:retweets lang:en
+    min_faves:2
+  Sume Labs:
+  - ("sume labs" OR sumelabs OR @sumelabs OR sume.ai) -filter:replies -filter:retweets lang:en min_faves:2
+  - ("David Im" (sume OR ai)) -filter:replies -filter:retweets lang:en min_faves:2
+  MiniMax: (@MiniMax__AI OR @Hailuo_AI OR hailuo OR "minimax ai" OR "minimax video") -filter:replies -filter:retweets
+    lang:en min_faves:2
+  KREA: (@krea_ai OR "krea ai" OR krea.ai) -filter:replies -filter:retweets lang:en min_faves:2
+  Runway: (@runwayml OR "runway ml" OR "runway gen-4" OR "runway aleph" OR "runway act-two" OR runwayml.com)
+    -filter:replies -filter:retweets lang:en min_faves:2
+  Black Forest Labs: (@bfl_ml OR "black forest labs" OR "flux kontext" OR "flux.1" OR "flux 1.1" OR "flux
+    pro") -filter:replies -filter:retweets lang:en min_faves:2
+rules: |
+  一、硬性条件（全部满足才进名单）
+  1. 受众在北美：博主本人在美国或加拿大，用英语发帖，评论区和互动的账号主要来自北美，发帖活跃时段在北美时区。
+  2. 真人素人：头像是真人照片，不用 AI 生成头像，也不是卡通或 logo；个人语气，有自己的生活或工作内容。
+  3. 话题对口：内容围绕 AI 工具、SaaS、创业、电商运营或创作者经济，粉丝是会用工具的人。
+  4. 体量：3k 到 30k 粉丝。
+  5. 真实互动：一般帖子的浏览量约为粉丝数的 10% 以上，评论是真人在说话。
+  6. 活跃：账号至少半年，近 7 天内有发帖。
+  7. 可联系：私信开着，或简介里有联系方式。
+
+  二、排除条件（任何一条就不要）
+  - 广告号：置顶或近期帖子里推广占比高，每隔几条就是广告。
+  - 带着 AI 头像，或者内容明显由 AI 批量生成。
+  - 评论区全是 "Great post" 一类的泛泛互动，粉丝数突然暴涨。
+  - 做空投、抽奖、互关的账号。
+  - 受众主要不在北美。
+
+  三、分档（icp_fit）
+  - High：全部满足，并且以前有工具推荐，评论区有人问链接或价格。
+  - Medium：全部满足，但没有带货证据。
+  - Low：勉强，不联系。
+
+  四、竞品批次（x-competitors）额外规则
+  1. 这批博主是因为近期发过竞品（Flova AI、Sume Labs、MiniMax/Hailuo、KREA、Runway、Black Forest Labs/FLUX）相关内容被搜到的。
+  2. 帖子是给竞品做的付费推广、赞助或联盟推广（#ad、#sponsored、partnered with、affiliate、折扣码、"thanks to X for sponsoring"）→ 明显加分，满足硬性条件时直接 High。
+  3. 认真用过、测评、教程类的竞品内容 → 至少 Medium。
+  4. 只是转发新闻、一句话提到、或者在骂竞品 → 不加分，按原标准判断。
+  5. 竞品官方账号、员工、投资人 → 排除（Low）。

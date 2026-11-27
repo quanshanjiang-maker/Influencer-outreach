@@ -12,7 +12,7 @@ beyond a dry run.
 - `python -m outreach setup-sheet` creates the Google Sheet tabs.
 - `python -m outreach search --dry-run` previews today's creators from the Criteria tab.
 - `python -m outreach search` writes them to the Candidates tab.
-- `python -m outreach score [--dry-run] [--limit N]` scores new candidates (0-10) and drafts openers.
+- `python -m outreach score [--dry-run] [--limit N] [--criteria NAME]` scores new candidates (0-10) and drafts openers.
 - `python -m outreach emails [--dry-run] [--limit N]` finds/verifies emails for scored rows (status -> ready / no_email).
 - `python -m outreach search --keywords "..." --lang en --platforms x,youtube,instagram,tiktok` quick search without a sheet.
 
@@ -24,7 +24,10 @@ beyond a dry run.
 - `python -m outreach slack digest [--dry-run]` posts the shortlist to Slack; `slack poll` answers new thread replies; `slack listen` is real-time Socket Mode.
 - `python -m outreach gmail-auth --client-secret file.json` one-time Gmail authorization (prints a refresh token; never commit it).
 
-Leader review: Candidates has X rates `price_post`, `price_thread`, `price_quote`, plus `leader_review`
+Competitor batch: `criteria/x-competitors.yaml` holds fixed searches (`Label: query`) for creators who recently
+posted about a competitor; matches fill `competitor` and `competitor_post`.
+
+Leader review: Candidates has X rates `price_post`, `price_thread`, `price_retweet`, `price_quote`, plus `leader_review`
 (待审 / 通过 / 不要 dropdown) and `leader_note`. A row with any price and no decision shows in the leader view.
 `setup-sheet` adds the dropdown, the two filter views and hides tool-only columns; `replies` fills empty price cells.
 Never overwrite a leader's choice in these columns.

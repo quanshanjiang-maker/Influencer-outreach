@@ -1,0 +1,29 @@
+# 2026-11-26: creators who also run TikTok and Instagram (user asked for 50 with both).
+# X posts that link to the creator's TikTok or Instagram, on AI tools / creator topics.
+# Load: python -m outreach criteria-import criteria/x-cross-platform.yaml
+# Search: python -m outreach search --criteria x-cross-platform
+name: x-cross-platform
+enabled: true
+platforms: x
+regions: US,CA
+language: en
+keywords: AI tools, AI video, ChatGPT, AI creator, content creator
+description: AI tool, AI video and creator-economy creators who also post on TikTok and Instagram and
+  link those accounts from X.
+min_followers: 3000
+max_followers: 60000
+min_avg_likes: 0
+max_candidates: 300
+since_days: 60
+pages_per_query: 8
+pitch: Frevana, a tool that lets people regenerate videos and images from social media. For our Black
+  Friday launch (Friday, November 27) it is free for a limited time. We pay creators for a quote repost.
+queries:
+  AI on TikTok: (AI OR ChatGPT OR "AI tool" OR "AI tools" OR "AI video") url:tiktok.com -filter:replies -filter:retweets lang:en
+  AI on Instagram: (AI OR ChatGPT OR "AI tool" OR "AI tools" OR "AI video") url:instagram.com -filter:replies -filter:retweets lang:en
+  Follow me TikTok IG: ("my tiktok" OR "on tiktok" OR "my ig" OR "on instagram" OR "follow me on") (AI OR ChatGPT OR "AI tools" OR prompts) -filter:replies -filter:retweets lang:en min_faves:5
+  Creator cross-post: ("posted on tiktok" OR "went viral on tiktok" OR "my reel" OR "instagram reel" OR "tiktok video") (AI OR ChatGPT OR "AI tool") -filter:replies -filter:retweets lang:en min_faves:5
+rules: |
+  按 standards/creator-standards.md 第 2 节打分（北美、真人、AI/SaaS/创业/电商/创作者经济话题、3k–30k 粉丝、浏览约为粉丝 10% 以上、近 7 天活跃、可联系）。
+  另外：这批专门找同时在 TikTok 和 Instagram 发内容的博主。bio、网站或帖子里能看到 TikTok / IG 账号的加分。
+  排除：接广号（bio 写 collab/promo/sponsor/paid partner）、互关号、泛 AI 工具搬运号、币圈/股票号。

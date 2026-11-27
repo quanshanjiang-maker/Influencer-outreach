@@ -16,7 +16,10 @@ min_followers: 3000
 max_followers: 30000
 min_avg_likes: 0
 max_candidates: 200
-pitch: ""
+pitch: >-
+  Frevana, a tool that lets people regenerate videos and images from social media. For our
+  Black Friday launch (Friday, November 27) it is free for a limited time. We pay creators for
+  a post, thread, retweet or quote repost about it.
 rules: |
   一、硬性条件（全部满足才进名单）
   1. 受众在北美：博主本人在美国或加拿大，用英语发帖，评论区和互动的账号主要来自北美，发帖活跃时段在北美时区。

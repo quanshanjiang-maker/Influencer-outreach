@@ -1,4 +1,4 @@
-from outreach.sheets import CANDIDATE_HEADERS, HIDDEN_COLUMNS, Sheet
+from outreach.sheets import CANDIDATE_HEADERS, HIDDEN_COLUMNS, PRICE_COLUMNS, Sheet
 
 
 class FakeWS:
@@ -51,7 +51,7 @@ def test_setup_review_adds_dropdown_colors_and_views_once():
     leader = next(r["addFilterView"]["filter"] for r in sent[0]["requests"]
                   if "addFilterView" in r and r["addFilterView"]["filter"]["title"].startswith("Leader"))
     formula = leader["filterSpecs"][0]["filterCriteria"]["condition"]["values"][0]["userEnteredValue"]
-    assert formula.count("LEN(") == 3 and "通过" in formula and "不要" in formula
+    assert formula.count("LEN(") == len(PRICE_COLUMNS) and "通过" in formula and "不要" in formula
 
     c = CANDIDATE_HEADERS.index("leader_review")
     meta = {"sheets": [{"properties": {"sheetId": 7},
@@ -90,3 +90,24 @@ def test_archive_copies_tab_then_deletes_platform_rows_bottom_up():
     n, title = sheet.archive_candidates("youtube")
     assert n == 4 and copies == [title] and title.startswith("Archive youtube")
     assert deleted == [(5, 6), (2, 3)]  # row 4 (x) kept
+
+
+def test_parse_queries_labels():
+    from outreach.sheets import parse_queries
+    assert parse_queries("KREA: krea ai lang:en\n\n# skip\nplain query") == [
+        ("KREA", "krea ai lang:en"), ("", "plain query")]
+
+
+def test_unseal_roundtrip_and_rejects_wrong_secret():
+    import base64, hashlib, hmac, os
+    import pytest
+    from outreach.cli import _unseal
+    key = hashlib.sha256(b"outreach-seal:s1").digest()
+    nonce, data = os.urandom(16), b'{"a": {"price_quote": "$30"}}'
+    stream = b"".join(hmac.new(key, nonce + i.to_bytes(4, "big"), hashlib.sha256).digest() for i in range(2))
+    body = bytes(a ^ b for a, b in zip(data, stream))
+    tag = hmac.new(key, nonce + body, hashlib.sha256).digest()[:16]
+    tok = base64.urlsafe_b64encode(nonce + tag + body).decode().rstrip("=")
+    assert _unseal(tok, "s1") == data
+    with pytest.raises(SystemExit):
+        _unseal(tok, "other")
